@@ -1073,6 +1073,7 @@
     $("view-lab").hidden = true;
     $("view-codex").hidden = true;
     $("view-rules").hidden = true;
+    $("view-guide").hidden = true;
     renderAtelier();
   }
 
@@ -1619,9 +1620,11 @@
         $("view-lab").hidden = state.tab !== "lab";
         $("view-codex").hidden = state.tab !== "codex";
         $("view-rules").hidden = state.tab !== "rules";
+        $("view-guide").hidden = state.tab !== "guide";
         if (state.tab === "rules") renderRules();
         if (state.tab === "codex") renderCodex("weapons");
         if (state.tab === "create") renderAtelier();
+        if (state.tab === "guide") renderGuide();
       });
     }
   }
@@ -1780,6 +1783,72 @@
       ol.appendChild(li);
     }
     root.appendChild(ol);
+  }
+
+  function guideBlock(title, lines) {
+    const block = document.createElement("section");
+    block.className = "guide-section";
+    const h = document.createElement("h3");
+    h.textContent = title;
+    block.appendChild(h);
+    for (const line of lines) {
+      const p = document.createElement("p");
+      if (line.strong) {
+        const b = document.createElement("strong");
+        b.textContent = line.strong;
+        p.appendChild(b);
+        p.appendChild(document.createTextNode(line.text));
+      } else {
+        p.textContent = line;
+      }
+      block.appendChild(p);
+    }
+    return block;
+  }
+
+  function renderGuide() {
+    const root = $("view-guide");
+    if (root.childElementCount) return;
+    root.className = "guide panel";
+    root.replaceChildren();
+
+    const title = document.createElement("h2");
+    title.textContent = "Dégâts et éléments";
+    root.appendChild(title);
+
+    const intro = document.createElement("p");
+    intro.className = "guide-intro";
+    intro.textContent = "Les chiffres d'arme sont ceux du wiki. Un malus ne s'applique que si la fiche le dit : porter l'élément ouvre la pioche d'arcanes, il ne pose pas le malus à lui seul.";
+    root.appendChild(intro);
+
+    root.appendChild(guideBlock("Le tir", [
+      "Le dégât affiché est celui d'un tir, ou d'un plomb quand la fiche le précise. Le critique le multiplie par le coefficient de l'arme, entre ×1,1 et ×1,5 selon les pièces.",
+      "La portée, l'étourdissement et le coût d'endurance changent comment on pose le tir. Ils ne changent pas la formule du malus.",
+      "Un ennemi étourdi prend parfois un bonus propre à l'arme (Striga, mêlée). Ce bonus n'est pas un malus élémentaire.",
+    ]));
+
+    root.appendChild(guideBlock("Les quatre malus", [
+      { strong: "Feu, Brûlure. ", text: "La cible subit davantage de dégâts. Une brûlure de base +25 % vaut un multiplicateur de 1,25 : dégâts du tir × magnitude. Ce n'est pas un dégât par tick." },
+      { strong: "Terre, Putréfaction. ", text: "Des ticks dans la durée. Chaque source a sa ligne du wiki : dégâts par tick, nombre de ticks, total. Deux putréfactions ne s'additionnent pas : le calcul retient la plus forte." },
+      { strong: "Air, Choc. ", text: "Un éclair saute. Le premier saut vaut un pourcentage du tir, le second la moitié. Sur un tir de 40 et une chaîne de 30 %, cela fait 12 puis 6, avant perles." },
+      { strong: "Eau, Gel. ", text: "La cible est immobilisée et subit +50 % de dégâts. Ce bonus ignore les perles. La perle Acute raccourcit le gel, elle ne le rend pas plus fort." },
+    ]));
+
+    root.appendChild(guideBlock("Quand deux malus se rencontrent", [
+      { strong: "Brûlure + Putréfaction. ", text: "tick × multiplicateur de brûlure × 1,5. L'exemple du wiki : 15 × 1,25 × 1,5 = 28,125. Le même facteur s'applique au total de la table." },
+      { strong: "Brûlure + Choc. ", text: "Si le groupe brûle : tir × magnitude d'éclair × 2,1 × multiplicateur de brûlure. Le tir lui-même augmente : dégâts + (dégâts × magnitude de brûlure × facteur de perles × 2,3)." },
+      { strong: "Brûlure + Gel. ", text: "Une explosion. Le wiki nomme l'effet et ne publie pas son montant." },
+      { strong: "Putréfaction + Choc. ", text: "Chaque tick émet un éclair. Aucun pourcentage n'est publié pour cet éclair-là." },
+      { strong: "Putréfaction + Gel. ", text: "La putréfaction dure plus longtemps. Aucun coefficient n'est publié." },
+      { strong: "Gel + Choc. ", text: "Les éclairs partent plus souvent. La fréquence n'est pas dans les tables." },
+    ]));
+
+    root.appendChild(guideBlock("Perles et arcanes", [
+      "Ailment Power vaut ×1,25 sur le bonus, Acute Ailment ×2, les deux ×2,25. On part de la magnitude de base : une brûlure +25 % avec les deux perles devient 1 + 0,25 × 2,25 = 1,5625.",
+      "Les totaux de ticks de la page Éléments incluent déjà +50 % de durée. Elemental Duration n'est pas réappliquée par-dessus.",
+      "Basilisk, la marque de Nemesis, Parasite, Book of Serpents et Kirfane ignorent ces perles, en tout ou en partie.",
+      "Un seul objet d'un élément ouvre sa pioche d'arcanes. En mettre deux ne rend pas cet élément plus probable. Hangfire est Feu sans être une source de Brûlure.",
+    ]));
   }
 
     applyFilters(readLocalFilters());

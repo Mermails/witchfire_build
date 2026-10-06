@@ -293,8 +293,8 @@ h1.wordmark {
   align-items: start;
 }
 
-.lab, .codex, .rules { padding: 18px var(--gutter) 56px; }
-.rules { max-width: 96ch; }
+.lab, .codex, .rules, .guide { padding: 18px var(--gutter) 56px; }
+.rules, .guide { max-width: 96ch; }
 
 /* ------------------------------------------------------------
    Panneaux
@@ -1238,6 +1238,36 @@ summary:hover { color: var(--brass); }
   font-weight: 700;
   color: var(--brass-dim);
 }
+
+/* ------------------------------------------------------------
+   Guide
+   ------------------------------------------------------------ */
+.guide.panel { margin: 18px var(--gutter) 56px; padding: 28px 32px 32px; }
+.guide h2 { font-size: 31px; margin-bottom: 12px; }
+.guide-intro { color: var(--muted); font-size: 16px; margin-bottom: 28px; line-height: 1.6; }
+.guide-section {
+  margin: 0 0 28px;
+  padding: 20px 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(13, 10, 8, 0.32);
+}
+.guide-section:hover { border-color: var(--line-strong); background: rgba(13, 10, 8, 0.5); }
+.guide-section h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--brass);
+  margin: 0 0 14px;
+}
+.guide-section p {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.65;
+  margin: 0 0 10px;
+}
+.guide-section p:last-child { margin-bottom: 0; }
+.guide-section strong { color: var(--ink); font-weight: 600; }
 
 /* ------------------------------------------------------------
    Pied de page
