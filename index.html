@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atelier Witchfire — builds et moteur d'éléments</title>
+  <meta name="theme-color" content="#100d0b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="sigil" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5 14.6 9h6.9l-5.6 4.1 2.1 6.9L12 15.9 6 20l2.1-6.9L2.5 9h6.9z"></path>
+        </svg>
+      </span>
+      <span class="brand-copy">
+        <span class="eyebrow">Preyer · atelier d'équipement</span>
+        <h1 class="wordmark">Witchfire</h1>
+      </span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections de l'atelier">
+      <button type="button" class="tab is-on" data-tab="builds" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 21 7.5 12 12 3 7.5z"></path><path d="M3 12.5 12 17l9-4.5"></path><path d="M3 17 12 21.5 21 17"></path></svg>
+        Builds
+      </button>
+      <button type="button" class="tab" data-tab="create" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 3.5 20.5 9.5 9 21H3v-6z"></path><path d="M12.5 5.5 18.5 11.5"></path></svg>
+        Atelier
+      </button>
+      <button type="button" class="tab" data-tab="lab" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3h5v5.2l4.3 8.1a3 3 0 0 1-2.7 4.4H7.9a3 3 0 0 1-2.7-4.4L9.5 8.2z"></path><path d="M7 14.5h10"></path></svg>
+        Laboratoire
+      </button>
+      <button type="button" class="tab" data-tab="codex" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v14h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4z"></path><path d="M12 5.5v14"></path></svg>
+        Codex
+      </button>
+      <button type="button" class="tab" data-tab="rules" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v16"></path><path d="M5 7h14"></path><path d="M5 7 2.5 13h5z"></path><path d="M19 7l-2.5 6h5z"></path><path d="M8.5 20.5h7"></path></svg>
+        Règles
+      </button>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <p class="lede">Le moteur assemble un équipement valide, applique les formules d'éléments du wiki, puis explique pourquoi le malus fait tenir le build.</p>
+  </div>
+
+  <main id="view-builds" class="layout">
+    <aside class="panel filters">
+      <fieldset>
+        <legend>Moment de la partie</legend>
+        <div class="phase-row" id="phases"></div>
+        <label class="slider-label" for="gnosis">Gnosis <strong id="gnosis-value">5</strong></label>
+        <input id="gnosis" type="range" min="0" max="7" value="5">
+        <div class="scale" aria-hidden="true"><span>0</span><span>I</span><span>II</span><span>III</span><span>IV</span><span>V</span><span>VI</span><span>VII</span></div>
+        <p class="hint" id="gnosis-hint"></p>
+      </fieldset>
+      <fieldset>
+        <legend>Mysterium du calcul</legend>
+        <select id="mysterium">
+          <option value="auto">Automatique</option>
+          <option value="1">Mysterium I</option>
+          <option value="2">Mysterium II</option>
+          <option value="3">Mysterium III</option>
+        </select>
+      </fieldset>
+      <fieldset>
+        <legend>Façon de jouer</legend>
+        <select id="style">
+          <option value="elementaire">Élémentaire</option>
+          <option value="foules">Foules</option>
+          <option value="boss">Boss et élites</option>
+          <option value="distance">Distance</option>
+          <option value="corps">Corps à corps</option>
+          <option value="survie">Survie</option>
+          <option value="tir">Tir pur</option>
+          <option value="notable">Notables</option>
+        </select>
+      </fieldset>
+      <fieldset>
+        <legend>Éléments imposés</legend>
+        <div class="checks" id="elements"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Arme imposée</legend>
+        <select id="weapon"><option value="">Aucune</option></select>
+      </fieldset>
+      <fieldset>
+        <legend>Transcendance</legend>
+        <div class="presets" id="attr-presets"></div>
+        <div id="attr-filters"></div>
+        <p class="filter-note">Une perle dont le seuil dépasse ces valeurs sort du rosaire. Le build cité reste visible, avec les perles encore accessibles.</p>
+        <label class="checkline"><input id="only-covered" type="checkbox"> Masquer ceux dont le rosaire cité dépasse</label>
+      </fieldset>
+      <fieldset>
+        <legend>Trier par</legend>
+        <select id="sort">
+          <option value="score">Score du moteur</option>
+          <option value="combo">Total élémentaire du wiki</option>
+          <option value="name">Nom</option>
+        </select>
+      </fieldset>
+      <fieldset>
+        <legend>Score</legend>
+        <select id="score-cut">
+          <option value="all">Tous les scores</option>
+          <option value="top5">Les 5 meilleurs</option>
+          <option value="top8">Les 8 meilleurs</option>
+          <option value="half">Au moins la moitié du meilleur</option>
+          <option value="near">Proches du meilleur</option>
+        </select>
+        <p class="filter-note">Les cinq et les huit meilleurs suivent le score du moteur. La moitié et les proches se mesurent au plus haut score de la liste.</p>
+      </fieldset>
+      <label class="checkline"><input id="locked" type="checkbox"> Montrer les builds encore verrouillés</label>
+      <label class="checkline"><input id="only-fav" type="checkbox"> Favoris seulement</label>
+      <button type="button" id="rerun" class="primary">Relancer le moteur</button>
+    </aside>
+    <section class="results">
+      <div id="status" class="status"></div>
+      <div id="builds" class="cards"></div>
+      <div id="locked-wrap"></div>
+    </section>
+    <article id="detail" class="panel detail" hidden></article>
+  </main>
+
+  <section id="view-create" class="create" hidden>
+    <div class="create-layout">
+      <div id="create-form" class="panel"></div>
+      <article id="create-out" class="panel"></article>
+    </div>
+  </section>
+
+  <section id="view-lab" class="lab" hidden>
+    <div class="panel lab-grid">
+      <label>Source de Putréfaction
+        <select id="lab-decay"></select>
+      </label>
+      <label>Source de Brûlure
+        <select id="lab-burn"></select>
+      </label>
+      <label>Source de Choc
+        <select id="lab-shock"><option value="">Aucune</option></select>
+      </label>
+      <label>Dégâts du tir
+        <input id="lab-shot" type="number" min="1" max="500" value="40">
+      </label>
+      <label>Perles d'altération
+        <select id="lab-beads">
+          <option value="none">Aucune</option>
+          <option value="power">Ailment Power ×1,25</option>
+          <option value="acute">Acute Ailment ×2</option>
+          <option value="both">Les deux ×2,25</option>
+        </select>
+      </label>
+      <button type="button" id="lab-run" class="primary">Calculer</button>
+    </div>
+    <article id="lab-out" class="panel proof"></article>
+  </section>
+
+  <section id="view-codex" class="codex" hidden>
+    <div class="codex-nav" id="codex-nav"></div>
+    <div id="codex-list" class="codex-list"></div>
+  </section>
+
+  <section id="view-rules" class="rules" hidden></section>
+
+  <pre id="crash" hidden></pre>
+  <footer>
+    <p>Chiffres tirés du wiki Witchfire (armes, sorts, objets, rosaire, arcanes, éléments, gnosis), des fils Reddit r/Witchfire et de la vidéo « The BEST Builds in Witchfire ». Le jeu change avec les mises à jour : la note cite la table, elle ne remplace pas un essai en expédition.</p>
+  </footer>
+  <script>
+    window.onerror = function (msg, src, line, col, err) {
+      if (msg === "Script error." && !src) return;
+      const el = document.getElementById("crash");
+      el.hidden = false;
+      el.textContent = err && err.stack ? err.stack : (String(msg) + " (" + src + ":" + line + ")");
+    };
+  </script>
+  <script src="data.js"></script>
+  <script src="engine.js"></script>
+  <script src="images.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
