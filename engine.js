@@ -562,10 +562,80 @@
     return best;
   }
 
+  /* Rangs subjectifs, petit écart seulement (S +14, A +9, B +5, C 0, D −4). Jamais affichés.
+     Armes classées dans la tier list YouTube Webgrave (fin de partie) : https://www.youtube.com/watch?v=vFq3sboueZY
+     Fatum, Martyr, Corpse Eater, démoniaques et mêlée absents de cette vidéo : panorama récent
+     https://www.reddit.com/r/Witchfire/comments/1vvb3hk/witchfire_weapon_overview_tier_list_opinions/
+     Tribunal, Soul Eater, Heart Eater et Morning Star n'y figurent pas : rang C, aucun bonus.
+     Sorts : piliers cités dans les builds récents (SeraphMax, fils actuels). Le reste reste neutre.
+     Reliques, anneaux, fétiches : guide d'équipement, 83 avis, août 2025
+     https://steamcommunity.com/sharedfiles/filedetails/?id=3452118540
+     Biting Tongue est dans un build du haut du classement SeraphMax, pas dans ce guide. */
+  const ITEM_RANK = {
+    hunger: "S", echo: "A", angelus: "B", psychopomp: "D", hailstorm: "D", hangfire: "B",
+    hypnosis: "A", frostbite: "A", basilisk: "C", duelist: "C", ricochet: "D", koschei: "B",
+    "corpse-eater": "B", oracle: "C", cricket: "C", midas: "D", nemesis: "A", "all-seeing-eye": "D",
+    martyr: "B", fatum: "A", striga: "S", rotweaver: "D", judgment: "B", tribunal: "C",
+    "falling-star": "S", vulture: "S", whisper: "B", "soul-eater": "C", tempest: "A", "heart-eater-standin": "C",
+    fist: "A", katar: "B", "morning-star": "C", buckler: "C",
+    fireballs: "B", firebreath: "A", "frost-cone": "A", shockwave: "B", "winter-nail": "C",
+    "blight-cyst": "A", "ice-stiletto": "C", "lightning-bolt": "B", stigma: "B", "cursed-bell": "C",
+    "iron-cross": "A", stormball: "A", "burning-stake": "S", "ice-sphere": "A", "rotten-fiend": "A",
+    cornucopia: "B", miasma: "B", "pyre-skull": "C", twinshade: "C",
+    "severed-ear": "B", "biting-tongue": "B", kirfane: "B", parasite: "B", "book-of-serpents": "C",
+    "eye-of-the-madwoman": "A", braid: "C", "blood-banshee": "A", "painted-tooth": "B", scourge: "C",
+    "static-ring": "C", "crown-of-fire": "B", "dynamo-ring": "C", "meteor-ring": "C", "ring-of-excreta": "B",
+    "ring-of-thorns": "B", "ring-of-wings": "A", "shadowmist-ring": "A", "ring-of-obedience": "C",
+    mandrake: "C", belladonna: "A", bittersweet: "C", monkshood: "B", henbane: "A", balewort: "B", yew: "C",
+  };
+  const RANK_WEIGHT = { S: 14, A: 9, B: 5, C: 0, D: -4 };
+
+  function rankWeight(entry) {
+    if (!entry) return 0;
+    const rank = ITEM_RANK[entry.id];
+    return rank ? RANK_WEIGHT[rank] : 0;
+  }
+
+  function sustainedDps(gun) {
+    if (!gun || !gun.stats || gun.slot === "melee") return 0;
+    const damage = gun.stats.damage || 0;
+    const rof = gun.stats.rof || 0;
+    const mag = gun.stats.mag || 0;
+    const reload = gun.stats.reload || 0;
+    if (!(damage > 0) || !(rof > 0) || !(mag > 0)) return 0;
+    const cycle = mag / rof + Math.max(0, reload);
+    return cycle > 0 ? (damage * mag) / cycle : 0;
+  }
+
+  function firepower(loadout) {
+    let total = 0;
+    if (loadout.primary) total += sustainedDps(loadout.primary);
+    if (loadout.secondary) total += sustainedDps(loadout.secondary);
+    if (loadout.demonic) total += sustainedDps(loadout.demonic) * 0.4;
+    return total;
+  }
+
+  function opinion(loadout) {
+    let total = 0;
+    for (const key of ["primary", "secondary", "demonic", "melee", "light", "heavy", "relic", "ring", "fetish"]) {
+      total += rankWeight(loadout[key]);
+    }
+    return total;
+  }
+
+  function unrankedItems() {
+    const pools = [DATA.weapons, DATA.demonic, DATA.melee, DATA.spells, DATA.relics, DATA.rings, DATA.fetishes];
+    const missing = [];
+    for (const pool of pools) {
+      for (const entry of pool) if (!ITEM_RANK[entry.id]) missing.push(entry.id);
+    }
+    return missing;
+  }
+
   function weaponScore(gun, plan, myst, style) {
     if (!gun) return 0;
-    const dps = (gun.stats.damage || 0) * (gun.stats.rof || 1);
-    let score = dps * 0.15;
+    const fire = sustainedDps(gun);
+    let score = fire * 0.2 + rankWeight(gun);
     if (plan.has("fire") && burnOf(gun, myst)) score += 80 * burnOf(gun, myst).base * 10 * (burnOf(gun, myst).reliable || 1);
     if (plan.has("earth") && decayOf(gun, myst)) score += 70;
     if (plan.has("air") && shockOf(gun, myst)) score += 50 * (shockOf(gun, myst).first || 0.2) * 10;
@@ -576,7 +646,7 @@
     if (style === "survie" && gun.stats && gun.stats.unwieldy === "sniper") score += 25;
     if (style === "survie" && gun.stats && (gun.stats.stun === "élevé" || gun.stats.stun === "très élevé")) score += 12;
     if (style === "corps" && gun.range === "close") score += 25;
-    if (style === "tir" ) score += dps * 0.25;
+    if (style === "tir") score += fire * 0.12;
     if (style === "foules" && gun.range === "close") score += 10;
     return score;
   }
@@ -593,6 +663,7 @@
     if (plan.has("air") && s) score += 80 * (s.first || 0.2) * s.reliable;
     if (plan.has("water") && f) score += 70 * f.reliable;
     for (const el of entry.elements || []) if (plan.has(el) && score < 20) score += 6;
+    score += rankWeight(entry);
     return score;
   }
 
@@ -627,7 +698,7 @@
     const beadPick = chooseBeads(loadout, slotCount, myst, style, gnosis, attrs);
     const math = beadPick.math;
     const got = applied(loadout, myst);
-    let score = beadPick.score;
+    let score = beadPick.score + firepower(loadout) + opinion(loadout);
     const guns = [loadout.primary, loadout.secondary].filter(Boolean);
     const ranges = new Set(guns.map((g) => g.range));
     if (ranges.has("close") && (ranges.has("medium") || ranges.has("long"))) score += 30;
@@ -995,6 +1066,18 @@
     return { lines, prophecies, locked: gnosis < 4 };
   }
 
+  function firepowerText(loadout) {
+    const bits = [];
+    for (const gun of [loadout.primary, loadout.secondary].filter((gun) => gun && gun.stats && gun.stats.mag)) {
+      bits.push(`${gun.name} : ${fmt(gun.stats.damage)} dégâts par balle, ${gun.stats.mag} balles, tir soutenu ${fmt(sustainedDps(gun))}`);
+    }
+    if (loadout.demonic && loadout.demonic.stats && loadout.demonic.stats.mag) {
+      bits.push(`${loadout.demonic.name} compte à 40 % (${fmt(sustainedDps(loadout.demonic) * 0.4)}) : ses munitions ne tiennent pas le combat`);
+    }
+    if (!bits.length) return "";
+    return `Le score ajoute le tir soutenu : dégâts par balle × balles du chargeur, divisés par le temps pour vider le chargeur puis le recharger. ${bits.join(". ")}.`;
+  }
+
   function proof(ev, myst, gnosis, extra) {
     const phase = phaseOf(gnosis);
     const steps = [
@@ -1010,6 +1093,8 @@
         text: `Parmi les perles déjà accessibles, le moteur compare les combinaisons qui remplissent le rosaire. Il retient ${ev.beads.map((b) => `${b.name} (${b.summary})`).join(" ; ")}.`,
       });
     }
+    const fireLine = firepowerText(ev.loadout);
+    if (fireLine) steps.push({ title: "Tir soutenu", text: fireLine });
     if (ev.math.decay) {
       const up = uptimeOf(ev.math.decay.decay);
       if (up < 0.99) {
@@ -1590,6 +1675,7 @@
       tick: math.comboTick,
       burnBaseUsed: math.burn && math.burn.item.name,
       expectedStake: tick,
+      unranked: unrankedItems(),
     };
   }
 
