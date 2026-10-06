@@ -114,7 +114,7 @@
 
   function sortedBuilds() {
     const list = state.result.builds.slice();
-    if (state.sort === "combo") list.sort((a, b) => (b.math.comboTotal || 0) - (a.math.comboTotal || 0));
+    if (state.sort === "combo") list.sort((a, b) => (b.math.package || b.math.comboTotal || 0) - (a.math.package || a.math.comboTotal || 0));
     else if (state.sort === "name") list.sort((a, b) => a.name.localeCompare(b.name, "fr"));
     else list.sort((a, b) => b.score - a.score);
     return list;
@@ -221,7 +221,8 @@
     meta.className = "meta";
     meta.appendChild(badge(build.phase, "phase"));
     meta.appendChild(badge(`Gnosis ${build.gnosis}`, ""));
-    if (build.math.comboTotal) meta.appendChild(badge(`Combo ${WF.fmt(build.math.comboTotal)}`, "score"));
+    const comboShown = build.math.package || build.math.comboTotal;
+    if (comboShown) meta.appendChild(badge(`Combo ${WF.fmt(comboShown)}`, "score"));
     for (const el of build.elements) meta.appendChild(badge(el.name, el.id));
     if (build.custom) meta.appendChild(badge("Personnel", ""));
     if (build.community && build.cited !== false) meta.appendChild(badge("Cité en ligne", ""));
@@ -268,10 +269,46 @@
     return links;
   }
 
+  const GLYPH = {
+    fire: "M8.1 1c.3 2.5-.7 3.7.5 5.4 1.1 1.5.5 3.7-1.7 5-2.5-1-3.6-3-2.7-4.8.4 1.4 1.5 1.7 1.5.1C6.2 5 7 2.8 8.1 1z",
+    water: "M8 1.4C8 1.4 3.7 6.2 3.7 9.4a4.3 4.3 0 0 0 8.6 0C12.3 6.2 8 1.4 8 1.4z",
+    air: "M9.3 1 3.9 8.1h3.5L6.3 15 12.2 7H8.6L9.3 1z",
+    earth: "M8 1.3 12.8 4.8 11.2 14.2H4.8L3.2 4.8 8 1.3z",
+  };
+
+  function elementGlyph(id) {
+    const known = window.WF_DATA.EL[id];
+    const name = known ? known.name : id;
+    const span = document.createElement("span");
+    span.className = "el-mark " + id;
+    span.title = name;
+    span.setAttribute("role", "img");
+    span.setAttribute("aria-label", name);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("fill", "currentColor");
+    path.setAttribute("d", GLYPH[id] || "");
+    svg.appendChild(path);
+    span.appendChild(svg);
+    return span;
+  }
+
+  function elementMarks(ids) {
+    const list = (ids || []).filter((id) => GLYPH[id]);
+    if (!list.length) return null;
+    const wrap = document.createElement("span");
+    wrap.className = "el-marks";
+    for (const id of list) wrap.appendChild(elementGlyph(id));
+    return wrap;
+  }
+
   function badge(text, cls) {
     const span = document.createElement("span");
     span.className = "badge " + (cls || "");
-    span.textContent = text;
+    if (GLYPH[cls]) span.appendChild(elementGlyph(cls));
+    span.appendChild(document.createTextNode(text));
     return span;
   }
 
@@ -309,6 +346,12 @@
     });
     detailHead.append(h, scoreBlock(build.score), close);
     root.appendChild(detailHead);
+    if (build.elements.length) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      for (const el of build.elements) meta.appendChild(badge(el.name, el.id));
+      root.appendChild(meta);
+    }
     const actions = document.createElement("div");
     actions.className = "row-actions";
     const saved = findSaved(build);
@@ -427,7 +470,9 @@
       const p = document.createElement("p");
       p.className = "proof-step";
       const strong = document.createElement("strong");
-      strong.textContent = line.element;
+      const markId = elementIds.find((id) => window.WF_DATA.EL[id].name === line.element);
+      if (markId) strong.appendChild(elementGlyph(markId));
+      strong.appendChild(document.createTextNode(line.element));
       p.appendChild(strong);
       const ul = document.createElement("span");
       ul.textContent = " " + line.picks.join(" · ");
@@ -499,7 +544,12 @@
     const kind = document.createElement("span");
     kind.textContent = label;
     const name = document.createElement("b");
-    name.textContent = entry ? entry.name : "—";
+    name.className = "gear-name";
+    const marks = elementMarks(entry && entry.elements);
+    if (marks) name.appendChild(marks);
+    const labelText = document.createElement("span");
+    labelText.textContent = entry ? entry.name : "—";
+    name.appendChild(labelText);
     text.append(kind, name);
     cell.appendChild(text);
     return cell;
@@ -605,7 +655,9 @@
     const text = document.createElement("div");
     const name = document.createElement("div");
     name.className = "name";
-    name.textContent = entry ? `${label} — ${entry.name}` : `${label} — vide`;
+    const marks = elementMarks(entry && entry.elements);
+    if (marks) name.appendChild(marks);
+    name.appendChild(document.createTextNode(entry ? `${label} — ${entry.name}` : `${label} — vide`));
     const sub = document.createElement("div");
     sub.className = "sub";
     if (entry) {
@@ -654,7 +706,7 @@
       btn.type = "button";
       btn.className = "chip " + id;
       btn.dataset.element = id;
-      btn.textContent = window.WF_DATA.EL[id].name;
+      btn.append(elementGlyph(id), document.createTextNode(window.WF_DATA.EL[id].name));
       btn.addEventListener("click", () => {
         if (state.elements.includes(id)) state.elements = state.elements.filter((el) => el !== id);
         else state.elements.push(id);
@@ -1561,7 +1613,7 @@
         table.appendChild(head);
         for (const row of result.rows) {
           const tr = document.createElement("tr");
-          for (const value of [row.name, WF.fmt(row.hit), WF.fmt(row.crit), WF.fmt(row.avg), row.dps == null ? "—" : WF.fmt(row.dps)]) {
+          for (const value of [row.name, WF.fmt(row.hit), row.crit == null ? "—" : WF.fmt(row.crit), row.avg == null ? "—" : WF.fmt(row.avg), row.dps == null ? "—" : WF.fmt(row.dps)]) {
             const td = document.createElement("td");
             td.textContent = value;
             tr.appendChild(td);
@@ -1572,9 +1624,14 @@
         tableWrap.className = "table-wrap";
         tableWrap.appendChild(table);
         output.appendChild(tableWrap);
-        if (result.math.comboTotal) {
+        if (result.math.comboTick || result.math.tickShock || result.math.package) {
           const combo = document.createElement("p");
-          combo.textContent = `Combo élémentaire du wiki, sans remultiplier la durée : tick ${WF.fmt(result.math.comboTick)}, total ${WF.fmt(result.math.comboTotal)}.`;
+          const parts = [];
+          if (result.math.comboTick) parts.push(`tick ${WF.fmt(result.math.comboTick)}`);
+          if (result.math.comboTotal) parts.push(`total de la table ${WF.fmt(result.math.comboTotal)}`);
+          if (result.math.tickShock) parts.push(`éclair du tick ${WF.fmt(result.math.tickShock)}, second saut ${WF.fmt(result.math.tickShockSecond)}`);
+          if (result.math.package) parts.push(`combo retenu ${WF.fmt(result.math.package)}`);
+          combo.textContent = `Combo élémentaire, sans remultiplier la durée : ${parts.join(", ")}.`;
           output.appendChild(combo);
         }
       }
@@ -1586,7 +1643,7 @@
         notes.appendChild(li);
       }
       const stack = document.createElement("li");
-      stack.textContent = "Le gel ajoute 50 % de dégâts subis. L'étourdissement dur les double. Les deux se multiplient. La brûlure utilise le multiplicateur du wiki. L'explosion Brûlure + Gel n'a pas de montant publié.";
+      stack.textContent = "Le gel ajoute 50 % au tir. L'étourdissement dur le double. Les deux se multiplient. La brûlure utilise le multiplicateur du wiki. Brûlure + Choc : tir × choc × 2,1 × brûlure, second saut à moitié. Un tick de putréfaction sur un gelé prend aussi ×1,5, sans rallonger le nombre de ticks. Si la brûlure est déjà là, ce ×1,5 est celui de Brûlure + Putréfaction et le gel n'est pas empilé une seconde fois. Chaque tick renvoie un éclair égal à sa puissance × la magnitude de choc. L'explosion Brûlure + Gel n'a pas de montant publié.";
       notes.appendChild(stack);
       output.appendChild(notes);
     };
@@ -1641,13 +1698,22 @@
       const math = WF.explainLab($("lab-decay").value, $("lab-burn").value, $("lab-beads").value, shot, $("lab-shock").value);
       const out = $("lab-out");
       out.innerHTML = "";
-      if (math.comboTotal || math.shockChain || math.shockShot) {
+      if (math.comboTotal || math.shockChain || math.shockShot || math.shockFirst || math.tickShock || math.takenBurn || math.takenFreeze) {
         const result = document.createElement("div");
         result.className = "lab-result";
-        if (math.comboTotal) result.appendChild(labFigure(WF.fmt(math.comboTotal), "Total de la table après brûlure"));
-        if (math.comboTick) result.appendChild(labFigure(WF.fmt(math.comboTick), "Tick affiché"));
-        if (math.shockChain) result.appendChild(labFigure(WF.fmt(math.shockChain), "Premier éclair, groupe en feu"));
+        if (math.takenBurn) result.appendChild(labFigure(WF.fmt(math.takenBurn), "Tir sous brûlure"));
+        if (math.takenFreeze) result.appendChild(labFigure(WF.fmt(math.takenFreeze), "Tir sur gelé"));
+        if (math.takenBurnFreeze) result.appendChild(labFigure(WF.fmt(math.takenBurnFreeze), "Tir, brûlure et gel"));
+        if (math.comboTick) result.appendChild(labFigure(WF.fmt(math.comboTick), "Tick de putréfaction"));
+        if (math.comboTotal) result.appendChild(labFigure(WF.fmt(math.comboTotal), "Total de la table"));
+        if (math.shockFirst) result.appendChild(labFigure(WF.fmt(math.shockFirst), "Choc, premier rebond"));
+        if (math.shockFirst) result.appendChild(labFigure(WF.fmt(math.shockSecond), "Choc, second rebond"));
+        if (math.shockChain) result.appendChild(labFigure(WF.fmt(math.shockChain), "Brûlure + choc, premier rebond"));
+        if (math.shockChain) result.appendChild(labFigure(WF.fmt(math.shockSecond), "Brûlure + choc, second rebond"));
         if (math.shockShot) result.appendChild(labFigure(WF.fmt(math.shockShot), "Tir avec brûlure et choc"));
+        if (math.tickShock) result.appendChild(labFigure(WF.fmt(math.tickShock), "Éclair du tick"));
+        if (math.tickShockSecond) result.appendChild(labFigure(WF.fmt(math.tickShockSecond), "Éclair secondaire du tick"));
+        if (math.package) result.appendChild(labFigure(WF.fmt(math.package), "Combo retenu"));
         out.appendChild(result);
       } else {
         const h = document.createElement("h2");
@@ -1724,13 +1790,22 @@
       const head = document.createElement("div");
       head.className = "codex-head";
       head.appendChild(portrait(entry));
+      const title = document.createElement("div");
+      title.className = "codex-title";
       const h = document.createElement("h2");
       h.textContent = entry.name;
-      head.appendChild(h);
+      title.appendChild(h);
+      const marks = elementMarks(entry.elements);
+      if (marks) {
+        const named = document.createElement("div");
+        named.className = "meta";
+        for (const id of entry.elements) named.appendChild(badge(window.WF_DATA.EL[id].name, id));
+        title.appendChild(named);
+      }
+      head.appendChild(title);
       const p = document.createElement("p");
       p.className = "codex-meta";
-      const elements = (entry.elements || []).map((id) => window.WF_DATA.EL[id].name).join(", ");
-      p.textContent = [`Gnosis ${entry.gnosis}`, elements, WF.statsLine(entry), entry.found || ""].filter(Boolean).join(" · ");
+      p.textContent = [`Gnosis ${entry.gnosis}`, WF.statsLine(entry), entry.found || ""].filter(Boolean).join(" · ");
       card.append(head, p);
       if (entry.mysteria) {
         for (const line of entry.mysteria) {
@@ -1767,13 +1842,13 @@
       "Brûlure + Putréfaction : tick × multiplicateur de brûlure × 1,5. Le multiplicateur de base +25 % vaut 1,25. L'exemple du wiki : 15 × 1,25 × 1,5 = 28,125.",
       "Ailment Power vaut ×1,25, Acute Ailment ×2, les deux ×2,25. Les bonus partent de la valeur de base et s'additionnent. Basilisk, la marque de Nemesis, Parasite, Book of Serpents et Kirfane ignorent ces perles, entièrement ou en partie.",
       "Un ennemi gelé subit +50 % de dégâts. Ce bonus ignore les perles. Acute raccourcit le gel.",
-      "Brûlure + Gel explose. Putréfaction + Gel dure plus longtemps. Putréfaction + Choc émet un éclair à chaque tick. Gel + Choc accélère les éclairs. Ces quatre effets sont nommés par le wiki sans coefficient : le moteur les cite et ne leur invente pas de dégâts.",
+      "Brûlure + Gel : le tir garanti vaut dégâts × multiplicateur de brûlure × 1,5. L'explosion du couple n'a pas de montant publié. Putréfaction + Gel, sans brûlure : le tick et le total de la table prennent ×1,5. Le wiki dit aussi que ça dure plus longtemps, sans dire de combien : aucun tick n'est ajouté. Putréfaction + Choc : chaque tick renvoie un éclair égal à sa puissance × la magnitude de choc, le second saut à moitié. Gel + Choc accélère les éclairs, et cette fréquence n'est pas dans les tables.",
       "Brûlure + Choc, si le groupe brûle : tir × magnitude d'éclair × 2,1 × multiplicateur de brûlure. Le tir lui-même augmente de dégâts × magnitude de base × facteur de perles × 2,3. La table du wiki ne publie le multiplicateur combiné que pour 30 %, 37,5 % et 60 % de chaîne, avec une brûlure de 25 % ou 37,5 %.",
       "Les totaux de ticks de la page Éléments ont été mesurés avec +50 % de durée. Le moteur n'applique pas une seconde fois la perle Elemental Duration.",
       "Deux objets du même élément ne rendent pas cet arcane plus probable. Un seul représentant suffit.",
       "Le score pondère le total publié par la facilité à maintenir la source. Une rafale de Rotweaver compte pour sa pleine valeur. Un encensoir ou un familier compte moins, tout en gardant leur total de table dans la preuve.",
       "Les builds cités viennent de r/Witchfire, des vidéos et des fiches wiki. S'il manque une pièce, le moteur la remplace par la meilleure pièce déjà débloquée du même rôle et l'écrit dans la preuve. La transcendance du filtre retire les perles dont le seuil n'est pas atteint.",
-      "Une pièce sans malus chiffré sort du classement même si elle gagne le combat : Oracle, Psychopomp, Cricket, Angelus, Frostbite, Falling Star, Shockwave, Cursed Bell, Cornucopia, Ring of Wings. Ces équipements sont épinglés à part. Martyr et Hangfire restent hors liste : les retours les décrivent comme confortables ou trop situés, pas comme un plan de combat stable.",
+      "Une pièce sans malus chiffré sort du classement élémentaire même si elle gagne le combat : Oracle, Psychopomp, Cricket, Angelus, Frostbite, Falling Star, Shockwave, Cursed Bell, Cornucopia, Ring of Wings, Hangfire. Quand un build cité les emporte, il apparaît dans le style Notable. Martyr n'a pas d'élément publié : il n'entre pas dans ce classement.",
     ];
     const ol = document.createElement("ol");
     ol.className = "rules-list";
@@ -1794,6 +1869,8 @@
     for (const line of lines) {
       const p = document.createElement("p");
       if (line.strong) {
+        const marks = elementMarks(line.elements);
+        if (marks) p.appendChild(marks);
         const b = document.createElement("strong");
         b.textContent = line.strong;
         p.appendChild(b);
@@ -1804,6 +1881,16 @@
       block.appendChild(p);
     }
     return block;
+  }
+
+  function elementChart() {
+    const fig = document.createElement("figure");
+    fig.className = "element-chart";
+    const img = document.createElement("img");
+    img.src = "images/element-interactions.png";
+    img.alt = "Schéma du wiki : Feu, Eau, Air, Terre, et l'effet de chaque couple.";
+    fig.appendChild(img);
+    return fig;
   }
 
   function renderGuide() {
@@ -1828,19 +1915,21 @@
     ]));
 
     root.appendChild(guideBlock("Les quatre malus", [
-      { strong: "Feu, Brûlure. ", text: "La cible subit davantage de dégâts. Une brûlure de base +25 % vaut un multiplicateur de 1,25 : dégâts du tir × magnitude. Ce n'est pas un dégât par tick." },
-      { strong: "Terre, Putréfaction. ", text: "Des ticks dans la durée. Chaque source a sa ligne du wiki : dégâts par tick, nombre de ticks, total. Deux putréfactions ne s'additionnent pas : le calcul retient la plus forte." },
-      { strong: "Air, Choc. ", text: "Un éclair saute. Le premier saut vaut un pourcentage du tir, le second la moitié. Sur un tir de 40 et une chaîne de 30 %, cela fait 12 puis 6, avant perles." },
-      { strong: "Eau, Gel. ", text: "La cible est immobilisée et subit +50 % de dégâts. Ce bonus ignore les perles. La perle Acute raccourcit le gel, elle ne le rend pas plus fort." },
+      { elements: ["fire"], strong: "Feu, Brûlure. ", text: "La cible subit davantage de dégâts. Une brûlure de base +25 % vaut un multiplicateur de 1,25 : dégâts du tir × magnitude. Ce n'est pas un dégât par tick." },
+      { elements: ["earth"], strong: "Terre, Putréfaction. ", text: "Des ticks dans la durée. Chaque source a sa ligne du wiki : dégâts par tick, nombre de ticks, total. Deux putréfactions ne s'additionnent pas : le calcul retient la plus forte." },
+      { elements: ["air"], strong: "Air, Choc. ", text: "Un éclair saute. Le premier saut vaut un pourcentage du tir, le second la moitié. Sur un tir de 40 et une chaîne de 30 %, cela fait 12 puis 6, avant perles." },
+      { elements: ["water"], strong: "Eau, Gel. ", text: "La cible est immobilisée et subit +50 % de dégâts. Ce bonus ignore les perles. La perle Acute raccourcit le gel, elle ne le rend pas plus fort." },
     ]));
 
+    root.appendChild(elementChart());
+
     root.appendChild(guideBlock("Quand deux malus se rencontrent", [
-      { strong: "Brûlure + Putréfaction. ", text: "tick × multiplicateur de brûlure × 1,5. L'exemple du wiki : 15 × 1,25 × 1,5 = 28,125. Le même facteur s'applique au total de la table." },
-      { strong: "Brûlure + Choc. ", text: "Si le groupe brûle : tir × magnitude d'éclair × 2,1 × multiplicateur de brûlure. Le tir lui-même augmente : dégâts + (dégâts × magnitude de brûlure × facteur de perles × 2,3)." },
-      { strong: "Brûlure + Gel. ", text: "Une explosion. Le wiki nomme l'effet et ne publie pas son montant." },
-      { strong: "Putréfaction + Choc. ", text: "Chaque tick émet un éclair. Aucun pourcentage n'est publié pour cet éclair-là." },
-      { strong: "Putréfaction + Gel. ", text: "La putréfaction dure plus longtemps. Aucun coefficient n'est publié." },
-      { strong: "Gel + Choc. ", text: "Les éclairs partent plus souvent. La fréquence n'est pas dans les tables." },
+      { elements: ["fire", "earth"], strong: "Brûlure + Putréfaction. ", text: "tick × multiplicateur de brûlure × 1,5. L'exemple du wiki : 15 × 1,25 × 1,5 = 28,125. Le même facteur s'applique au total de la table." },
+      { elements: ["fire", "air"], strong: "Brûlure + Choc. ", text: "Si le groupe brûle : tir × magnitude d'éclair × 2,1 × multiplicateur de brûlure. Le tir lui-même augmente : dégâts + (dégâts × magnitude de brûlure × facteur de perles × 2,3)." },
+      { elements: ["fire", "water"], strong: "Brûlure + Gel. ", text: "Le tir garanti vaut dégâts × multiplicateur de brûlure × 1,5. L'explosion du couple n'a pas de montant publié." },
+      { elements: ["earth", "air"], strong: "Putréfaction + Choc. ", text: "Chaque tick renvoie un éclair égal à la puissance déjà obtenue par ce tick, fois la magnitude de choc. Le second saut vaut la moitié." },
+      { elements: ["earth", "water"], strong: "Putréfaction + Gel. ", text: "Sans brûlure, le tick et le total de la table prennent ×1,5. Le wiki dit aussi que ça dure plus longtemps, sans dire de combien : aucun tick n'est ajouté. Si la brûlure est déjà là, le ×1,5 est celui de Brûlure + Putréfaction et le gel n'est pas empilé une seconde fois." },
+      { elements: ["water", "air"], strong: "Gel + Choc. ", text: "Les éclairs partent plus souvent. La fréquence n'est pas dans les tables." },
     ]));
 
     root.appendChild(guideBlock("Perles et arcanes", [

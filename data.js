@@ -365,10 +365,10 @@
 
   const rules = [
     { id: "burn-decay", pair: ["fire", "earth"], name: "Brûlure + Putréfaction", effect: "Ticks de putréfaction renforcés.", formula: "tick × multiplicateur de brûlure × 1,5" },
-    { id: "burn-freeze", pair: ["fire", "water"], name: "Brûlure + Gel", effect: "Une explosion de dégâts.", formula: "Le wiki ne publie pas le montant de l'explosion." },
+    { id: "burn-freeze", pair: ["fire", "water"], name: "Brûlure + Gel", effect: "Le tir garanti prend la brûlure puis le gel. L'explosion du couple existe, sans montant publié.", formula: "tir × (1 + brûlure) × 1,5" },
     { id: "burn-shock", pair: ["fire", "air"], name: "Brûlure + Choc", effect: "Éclairs plus forts, et le tir lui-même augmente si les deux malus sont sur la cible.", formula: "tir × magnitude d'éclair × 2,1 × multiplicateur de brûlure, si le groupe brûle" },
-    { id: "decay-freeze", pair: ["earth", "water"], name: "Putréfaction + Gel", effect: "La putréfaction dure plus longtemps.", formula: "Aucun coefficient chiffré." },
-    { id: "decay-shock", pair: ["earth", "air"], name: "Putréfaction + Choc", effect: "Chaque tick de putréfaction émet un éclair.", formula: "Aucun pourcentage publié pour cet éclair-là." },
+    { id: "decay-freeze", pair: ["earth", "water"], name: "Putréfaction + Gel", effect: "Le tick subit +50 %. La durée rallongée n'a pas de coefficient.", formula: "tick × 1,5" },
+    { id: "decay-shock", pair: ["earth", "air"], name: "Putréfaction + Choc", effect: "Chaque tick de putréfaction émet un éclair qui reprend la puissance du tick.", formula: "éclair = puissance du tick × magnitude de choc. Le second saut vaut la moitié." },
     { id: "freeze-shock", pair: ["water", "air"], name: "Gel + Choc", effect: "Les éclairs partent plus souvent.", formula: "Aucune fréquence chiffrée." },
   ];
 

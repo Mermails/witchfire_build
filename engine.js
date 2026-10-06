@@ -252,7 +252,17 @@
     let comboTotal = 0;
     let comboTick = 0;
     let shockChain = 0;
+    let shockSecond = 0;
+    let shockFirst = 0;
     let shockShot = 0;
+    let tickShock = 0;
+    let tickShockSecond = 0;
+    let tickShockTotal = 0;
+    let tickShockSecondTotal = 0;
+    let takenBurn = 0;
+    let takenFreeze = 0;
+    let takenBurnFreeze = 0;
+    let packageScore = 0;
     let kind = "aucun";
     const shot = shotOverride > 0 ? shotOverride : referenceShot(loadout);
 
@@ -314,15 +324,14 @@
       });
     }
 
-    if (burn && shock && !shock.qualitative && (shock.ailmentFirst || shock.first)) {
-      const ailmentBase = shock.ailmentFirst || shock.first;
-      const ailmentSecond = shock.ailmentSecond || shock.second || ailmentBase / 2;
-      const scales = shock.ailmentFirst ? true : !!shock.bead;
-      const factor = scales ? ailmentFactor(mode) : 1;
-      const first = ailmentBase * factor;
+    const mags = shockMagnitudes(shock, mode);
+    if (burn && mags) {
+      const first = mags.first;
       const bMult = burnMultiplier(burn.base, burn.bead, mode);
       const beadFactor = burn.bead ? ailmentFactor(mode) : 1;
+      const ailmentBase = shock.ailmentFirst || shock.first;
       shockChain = shot * first * 2.1 * bMult;
+      shockSecond = shockChain / 2;
       const chainSolo = shot * first * 2.1;
       shockShot = shot + shot * burn.base * beadFactor * 2.3;
       lines.push({
@@ -341,49 +350,99 @@
         });
       }
       if (shock.ailmentFirst && Math.abs(shock.first - shock.ailmentFirst) > 0.01) {
+        const chainSecond = shock.ailmentSecond || shock.second || ailmentBase / 2;
         lines.push({
           title: "Chaîne à part",
-          text: `${shock.item.name} a aussi une chaîne de ${pct(shock.first)} puis ${pct(shock.second || shock.first / 2)}. Elle n'est pas le Choc que les perles renforcent. Le second saut de ce Choc-là part de ${pct(ailmentSecond)}.`,
+          text: `${shock.item.name} a aussi une chaîne de ${pct(shock.first)} puis ${pct(shock.second || shock.first / 2)}. Elle n'est pas le Choc que les perles renforcent. Le second saut de ce Choc-là part de ${pct(chainSecond)}.`,
         });
       }
-      if (kind === "aucun") kind = "burn-shock";
-    } else if (shock && !shock.qualitative && (shock.ailmentFirst || shock.first)) {
+      if (kind === "aucun" || kind === "burn") kind = "burn-shock";
+    } else if (mags) {
       const ailmentBase = shock.ailmentFirst || shock.first;
       const ailmentSecond = shock.ailmentSecond || shock.second || ailmentBase / 2;
-      const scales = shock.ailmentFirst ? true : !!shock.bead;
-      const factor = scales ? ailmentFactor(mode) : 1;
+      shockFirst = shot * mags.first;
+      shockSecond = shot * mags.second;
       lines.push({
         title: "Choc",
-        text: `${shock.item.name} : premier saut ${pct(ailmentBase)} du tir, second ${pct(ailmentSecond)}. Sur un tir de ${fmt(shot)}, avec « ${modeLabel(mode)} » : ${fmt(shot * ailmentBase * factor)} puis ${fmt(shot * ailmentSecond * factor)}.`,
+        text: `${shock.item.name} : premier saut ${pct(ailmentBase)} du tir, second ${pct(ailmentSecond)}. Sur un tir de ${fmt(shot)}, avec « ${modeLabel(mode)} » : ${fmt(shockFirst)} puis ${fmt(shockSecond)}.`,
       });
       if (kind === "aucun") kind = "shock";
     }
 
-    if (freeze) {
+    const burnMult = burn ? burnMultiplier(burn.base, burn.bead, mode) : 1;
+    if (burn) takenBurn = shot * burnMult;
+    if (freeze) takenFreeze = shot * 1.5;
+    if (burn && freeze) takenBurnFreeze = shot * burnMult * 1.5;
+
+    if (freeze && decay && decay.row && !burn) {
+      comboTick = decay.row.tick * 1.5;
+      comboTotal = decay.row.total * 1.5;
+      kind = "decay-freeze";
       lines.push({
-        title: "Gel",
-        text: `${freeze.item.name} immobilise. Un ennemi gelé subit +50 % de dégâts, et ce bonus ignore les perles. ${freeze.note || "La perle Acute raccourcit le gel sans le rendre plus fort."} ${burn ? "Brûlure + Gel déclenche en plus une explosion, dont le wiki ne donne pas le montant." : ""}`,
+        title: "Putréfaction sur un gelé",
+        text: `Le tick subit +50 %, comme les autres dégâts sur un gelé. ${fmt(decay.row.tick)} × 1,5 = ${fmt(comboTick)}. Sur les ${decay.row.ticks} ticks de la table, le total passe de ${fmt(decay.row.total)} à ${fmt(comboTotal)}. Le gel allonge aussi la putréfaction, mais cette durée n'a pas de coefficient : elle n'est pas ajoutée.`,
       });
-      if (kind === "aucun") kind = "freeze";
     }
 
-    if (decay && shock) {
+    if (freeze) {
+      const guaranteed = burn
+        ? ` Avec la brûlure, le tir garanti vaut ${fmt(shot)} × ${fmt(burnMult, 3)} × 1,5 = ${fmt(takenBurnFreeze)}. L'explosion du couple n'a pas de montant publié, elle n'est pas dans ce chiffre.`
+        : "";
+      lines.push({
+        title: "Gel",
+        text: `${freeze.item.name} immobilise. Un ennemi gelé subit +50 % de dégâts, et ce bonus ignore les perles. Sur ce tir de ${fmt(shot)} : ${fmt(takenFreeze)}.${guaranteed} ${freeze.note || "La perle Acute raccourcit le gel sans le rendre plus fort."}`,
+      });
+      if (kind === "aucun") kind = "freeze";
+      else if (kind === "burn") kind = "burn-freeze";
+      else if (kind === "burn-shock") kind = "burn-shock-freeze";
+    }
+
+    if (decay && decay.row && mags) {
+      tickShock = comboTick * mags.first;
+      tickShockSecond = comboTick * mags.second;
+      tickShockTotal = tickShock * decay.row.ticks;
+      tickShockSecondTotal = tickShockSecond * decay.row.ticks;
+      if (burn) kind = "burn-decay-shock";
+      else if (kind === "decay" || kind === "decay-freeze") kind = `${kind}-shock`;
+      lines.push({
+        title: "Éclair hérité du tick",
+        text: `Chaque tick de putréfaction déclenche un choc, qui reprend la puissance déjà obtenue par le tick. Premier éclair : ${fmt(comboTick)} × ${fmt(mags.first, 3)} = ${fmt(tickShock)}. Second saut : ${fmt(tickShockSecond)}. Sur ${decay.row.ticks} ticks : ${fmt(tickShockTotal)}, puis ${fmt(tickShockSecondTotal)} sur les cibles du second saut. Conductor, si vous le piochez, fait voyager les malus de la source avec la foudre.`,
+      });
+    } else if (decay && shock && shock.qualitative) {
       lines.push({
         title: "Putréfaction + Choc",
-        text: "Chaque tick de putréfaction émet un éclair. Le wiki ne publie pas le pourcentage de cet éclair précis. Conductor, si vous le piochez, fait voyager les malus de la source avec la foudre.",
+        text: "Chaque tick de putréfaction émet un éclair. Cette source de choc n'a pas de magnitude chiffrée, donc l'éclair du tick n'est pas calculé. Conductor, si vous le piochez, fait voyager les malus de la source avec la foudre.",
       });
     }
-    if (decay && freeze) {
+
+    if (decay && freeze && burn) {
       lines.push({
-        title: "Putréfaction + Gel",
-        text: "Le gel allonge la putréfaction. Aucun coefficient n'est publié : le total chiffré plus haut ne l'inclut pas.",
+        title: "Putréfaction, brûlure et gel",
+        text: `Le ×1,5 du tick est celui de Brûlure + Putréfaction. Le +50 % du gel n'est pas empilé une seconde fois sur ce tick : les deux formules ne sont pas publiées ensemble. Le tir, lui, prend les deux : ${fmt(takenBurnFreeze)}.`,
       });
     }
-    if (freeze && shock) {
+
+    if (freeze && shock && !decay) {
       lines.push({
         title: "Gel + Choc",
-        text: "Les éclairs partent plus souvent. La fréquence exacte n'est pas dans les tables.",
+        text: "Les éclairs partent plus souvent. La fréquence exacte n'est pas dans les tables. Le montant de chaque éclair reste celui calculé plus haut.",
       });
+    }
+
+    if (decay && decay.row) {
+      packageScore = comboTotal + tickShockTotal + tickShockSecondTotal;
+    } else if (shockChain) {
+      packageScore = shockChain + shockSecond;
+      if (takenBurnFreeze) packageScore += takenBurnFreeze - shot;
+    } else if (shockFirst) {
+      packageScore = shockFirst + shockSecond;
+      if (freeze) packageScore += shot * 0.5;
+    } else if (takenBurnFreeze) {
+      packageScore = takenBurnFreeze - shot;
+    } else if (takenBurn) {
+      packageScore = takenBurn - shot;
+    } else if (takenFreeze) {
+      packageScore = shot * 0.5;
     }
 
     const elementSet = activeElements(loadout, myst);
@@ -394,13 +453,28 @@
         : "Aucun élément dans l'équipement : la pioche d'arcanes élémentaires reste fermée.",
     });
 
-    return { mode, decay, burn, shock, freeze, lines, comboTotal, comboTick, shockChain, shockShot, kind, elements: [...elementSet] };
+    return {
+      mode, decay, burn, shock, freeze, lines, comboTotal, comboTick,
+      shockChain, shockSecond, shockFirst, shockShot,
+      tickShock, tickShockSecond, tickShockTotal, tickShockSecondTotal,
+      takenBurn, takenFreeze, takenBurnFreeze,
+      package: packageScore, kind, elements: [...elementSet],
+    };
   }
 
   function referenceShot(loadout) {
     const gun = loadout.primary || loadout.secondary;
     if (!gun || !gun.stats) return 20;
     return gun.stats.damage || 20;
+  }
+
+  function shockMagnitudes(shock, mode) {
+    if (!shock || shock.qualitative || !(shock.ailmentFirst || shock.first)) return null;
+    const base = shock.ailmentFirst || shock.first;
+    const secondBase = shock.ailmentSecond || shock.second || base / 2;
+    const scales = shock.ailmentFirst ? true : !!shock.bead;
+    const factor = scales ? ailmentFactor(mode) : 1;
+    return { first: base * factor, second: secondBase * factor };
   }
 
   function ailmentFactor(mode) {
@@ -468,7 +542,8 @@
     for (const set of sized) {
       const math = computeMath(loadout, set, myst);
       const uptime = uptimeOf(math.decay && math.decay.decay);
-      let score = math.comboTotal * (math.kind === "burn-decay" || math.kind === "decay" ? uptime : 1);
+      const timed = !!(math.decay && math.decay.row);
+      let score = (math.package || 0) * (timed ? uptime : 1);
       for (const b of set) {
         score += (b.utility || 0) * 12;
         if (b.tags.shotgun && hasShotgun) score += 80;
@@ -527,6 +602,25 @@
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((row) => row.entry);
+  }
+
+  function appliesPlan(entry, plan, myst) {
+    if (plan.has("fire") && burnOf(entry, myst)) return true;
+    if (plan.has("earth") && decayOf(entry, myst)) return true;
+    if (plan.has("air") && shockOf(entry, myst) && !shockOf(entry, myst).qualitative) return true;
+    if (plan.has("water") && freezeOf(entry, myst)) return true;
+    return false;
+  }
+
+  function preferApplied(list, plan, myst, style, limit) {
+    const ranked = rank(list, plan, myst, style, list.length || limit);
+    const applied = [];
+    const rest = [];
+    for (const entry of ranked) {
+      if (appliesPlan(entry, plan, myst)) applied.push(entry);
+      else rest.push(entry);
+    }
+    return applied.concat(rest).slice(0, limit);
   }
 
   function evaluate(loadout, plan, myst, gnosis, style, slotCount, attrs) {
@@ -659,7 +753,7 @@
 
   function searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs) {
     const src = pool(gnosis);
-    let weapons = rank(src.weapons, plan, myst, style, style === "survie" ? 7 : 5);
+    let weapons = preferApplied(src.weapons, plan, myst, style, style === "survie" ? 10 : 8);
     if (style === "survie") {
       for (const id of ["hailstorm", "oracle", "frostbite"]) {
         const gun = src.weapons.find((w) => w.id === id);
@@ -670,10 +764,10 @@
       const forced = src.weapons.find((w) => w.id === weaponId) || DATA.demonic.find((w) => w.id === weaponId && w.gnosis <= gnosis);
       if (forced && forced.slot === "weapon" && !weapons.some((w) => w.id === forced.id)) weapons.unshift(forced);
     }
-    const lights = rank(src.lights, plan, myst, style, 3);
-    const heavies = rank(src.heavies, plan, myst, style, 2);
-    const relics = rank(src.relics, plan, myst, style, 2);
-    const rings = rank(src.rings, plan, myst, style, 2);
+    const lights = preferApplied(src.lights, plan, myst, style, 4);
+    const heavies = preferApplied(src.heavies, plan, myst, style, 4);
+    const relics = preferApplied(src.relics, plan, myst, style, 1);
+    const rings = preferApplied(src.rings, plan, myst, style, 2);
     const fetish = pickFetish(src.fetishes, style);
     let demonic = pickDemonic(src.demonic, style);
     if (weaponId) {
@@ -714,7 +808,24 @@
       }
     }
     found.sort((a, b) => b.score - a.score);
-    return found.slice(0, 2);
+    const diverse = [];
+    const seen = new Set();
+    const perGun = {};
+    const perDecay = {};
+    for (const ev of found) {
+      const core = coreOf(ev);
+      if (seen.has(core)) continue;
+      const gun = ev.loadout.primary ? ev.loadout.primary.id : "-";
+      const decay = ev.math && ev.math.decay ? ev.math.decay.decay.item.id : "-";
+      if ((perGun[gun] || 0) >= 2) continue;
+      if ((perDecay[decay] || 0) >= 3) continue;
+      seen.add(core);
+      perGun[gun] = (perGun[gun] || 0) + 1;
+      perDecay[decay] = (perDecay[decay] || 0) + 1;
+      diverse.push(ev);
+      if (diverse.length >= 12) break;
+    }
+    return diverse;
   }
 
   function orderGuns(a, b, style) {
@@ -819,17 +930,23 @@
   function noteFor(ev, myst) {
     const math = ev.math;
     const bits = [];
-    if (math.kind === "burn-decay" && math.decay && math.burn) {
+    if ((math.kind === "burn-decay" || math.kind === "burn-decay-shock") && math.decay && math.burn) {
       const others = (math.decay.others || []).map((other) => other.decay.item.name);
       bits.push(`Le calcul retient ${math.decay.decay.item.name} pour la Putréfaction et ${math.burn.item.name} pour la Brûlure. Un tick de table passe de ${fmt(math.decay.row.tick)} à ${fmt(math.comboTick)} (${fmt(math.decay.row.tick)} × ${fmt(burnMultiplier(math.burn.base, math.burn.bead, math.mode), 3)} × 1,5).`);
+      if (math.tickShock) bits.push(`Chaque tick renvoie un éclair de ${fmt(math.tickShock)}, puis ${fmt(math.tickShockSecond)} au second saut.`);
       if (others.length) bits.push(`Aussi dans l'équipement, sans additionner les ticks : ${others.join(", ")}.`);
       bits.push("L'arme peut ne faire qu'un point de dégât : le malus continue après le repli.");
-    } else if (math.burn && math.freeze) {
-      bits.push(`Le couple utile est le gel de ${math.freeze.item.name} avec la brûlure de ${math.burn.item.name} : le gel ajoute 50 % de dégâts subis, et les deux malus ensemble explosent.`);
     } else if (math.burn && math.shock) {
-      bits.push(`Le choc de ${math.shock.item.name} porte la chaîne, la brûlure de ${math.burn.item.name} la multiplie. Le gros chiffre demande que le groupe brûle, pas seulement la cible du premier tir.`);
+      bits.push(`Le choc de ${math.shock.item.name} porte la chaîne, la brûlure de ${math.burn.item.name} la multiplie. Premier rebond ${fmt(math.shockChain)}, second ${fmt(math.shockSecond)}. Le gros chiffre demande que le groupe brûle.`);
+      if (math.freeze) bits.push(`Le tir garanti, brûlure et gel, vaut ${fmt(math.takenBurnFreeze)}. L'explosion du couple n'a pas de montant publié.`);
+    } else if (math.burn && math.freeze) {
+      bits.push(`Le couple utile est le gel de ${math.freeze.item.name} avec la brûlure de ${math.burn.item.name}. Le tir garanti vaut ${fmt(math.takenBurnFreeze)} : dégâts × magnitude de brûlure × 1,5. L'explosion du couple n'a pas de montant publié.`);
     } else if (math.decay && math.shock) {
-      bits.push(`Chaque tick de ${math.decay.decay.item.name} peut renvoyer un éclair grâce au choc de ${math.shock.item.name}.`);
+      bits.push(math.tickShock
+        ? `Chaque tick de ${math.decay.decay.item.name} renvoie un éclair de ${fmt(math.tickShock)} via ${math.shock.item.name}, puis ${fmt(math.tickShockSecond)} au second saut.`
+        : `Chaque tick de ${math.decay.decay.item.name} peut renvoyer un éclair grâce au choc de ${math.shock.item.name}, sans magnitude chiffrée.`);
+    } else if (math.decay && math.freeze && math.decay.row) {
+      bits.push(`Le tick de ${math.decay.decay.item.name} passe de ${fmt(math.decay.row.tick)} à ${fmt(math.comboTick)} sur un gelé. La durée rallongée par le gel n'est pas chiffrée.`);
     } else if (math.freeze) {
       bits.push(`Le gel de ${math.freeze.item.name} porte le build : +50 % de dégâts subis, et les arcanes d'Eau (Freezing Gust, Shattered Soul) frappent au dégel.`);
     } else if (math.burn) {
@@ -862,7 +979,7 @@
         ? `Mêlée ${ev.loadout.melee.name} : au M3 de Psychopomp un kill la recharge, au M1 un kill de coup chargé rend jusqu'à la moitié du chargeur.`
         : `Finir au corps avec ${ev.loadout.melee.name} quand la charge est pleine, surtout sur un étourdi.`);
     }
-    if (ev.math.kind === "burn-decay") steps.push("Se couvrir pendant que les ticks finissent les blessés.");
+    if (ev.math.kind === "burn-decay" || ev.math.kind === "burn-decay-shock") steps.push("Se couvrir pendant que les ticks finissent les blessés.");
     return steps.join(" ");
   }
 
@@ -957,6 +1074,17 @@
       math: {
         comboTick: ev.math.comboTick,
         comboTotal: ev.math.comboTotal,
+        package: ev.math.package,
+        shockChain: ev.math.shockChain,
+        shockSecond: ev.math.shockSecond,
+        shockFirst: ev.math.shockFirst,
+        tickShock: ev.math.tickShock,
+        tickShockSecond: ev.math.tickShockSecond,
+        tickShockTotal: ev.math.tickShockTotal,
+        tickShockSecondTotal: ev.math.tickShockSecondTotal,
+        takenBurn: ev.math.takenBurn,
+        takenFreeze: ev.math.takenFreeze,
+        takenBurnFreeze: ev.math.takenBurnFreeze,
         kind: ev.math.kind,
         lines: ev.math.lines,
       },
@@ -1065,22 +1193,24 @@
       const decayId = ev.math && ev.math.decay ? ev.math.decay.decay.item.id : "-";
       const faithful = ev.meta && ev.meta.community && !(ev.meta.subs && ev.meta.subs.length);
       if (used.has(key) || cores.has(core)) return;
-      if (!faithful && decayUses[decayId] >= 2) return;
+      const cited = !!(ev.meta && ev.meta.community);
+      if (!faithful && !cited && decayUses[decayId] >= 4) return;
       if (weaponId && !pieces(ev.loadout).some((p) => p && p.id === weaponId)) return;
       used.add(key);
       cores.add(core);
-      decayUses[decayId] = (decayUses[decayId] || 0) + 1;
+      if (!cited) decayUses[decayId] = (decayUses[decayId] || 0) + 1;
       cards.push(toCard(ev, gnosis, myst, ev.meta));
     };
-    const communityCap = style === "notable" ? 40 : 4;
-    const totalCap = style === "notable" ? 40 : 8;
-    for (const ev of bag.filter((entry) => entry.meta && entry.meta.community)) {
+    const generatedCap = style === "notable" ? 0 : 36;
+    for (const ev of bag.filter((entry) => entry.meta && entry.meta.community)) take(ev);
+    const byScore = bag.slice().sort((a, b) => b.score - a.score);
+    let generated = 0;
+    for (const ev of byScore) {
+      if (ev.meta && ev.meta.community) continue;
+      const before = cards.length;
       take(ev);
-      if (cards.length >= communityCap) break;
-    }
-    for (const ev of bag) {
-      take(ev);
-      if (cards.length >= totalCap) break;
+      if (cards.length > before) generated += 1;
+      if (generated >= generatedCap) break;
     }
     for (const ev of bag.filter((entry) => entry.meta && entry.meta.anchor)) {
       if (cards.some((card) => card.id === ev.meta.id)) continue;
@@ -1306,7 +1436,21 @@
       const dps = cycle > 0 ? (sheet.mag * avg) / cycle : 0;
       return { name: situation.name, hit, crit, avg, dps };
     });
-    return { stats, math, gun, gunKey, rows, notes, sheet, burnMult };
+    const shotMath = computeMath(loadout, beads || [], myst, sheet.damage);
+    const extra = (name, hit) => rows.push({ name, hit, crit: null, avg: null, dps: null });
+    if (shotMath.shockChain) {
+      extra("Brûlure + choc, premier rebond", shotMath.shockChain);
+      extra("Brûlure + choc, second rebond", shotMath.shockSecond);
+    } else if (shotMath.shockFirst) {
+      extra("Choc, premier rebond", shotMath.shockFirst);
+      extra("Choc, second rebond", shotMath.shockSecond);
+    }
+    if (shotMath.comboTick) extra("Tick de putréfaction", shotMath.comboTick);
+    if (shotMath.tickShock) {
+      extra("Éclair du tick", shotMath.tickShock);
+      extra("Éclair secondaire du tick", shotMath.tickShockSecond);
+    }
+    return { stats, math: shotMath, gun, gunKey, rows, notes, sheet, burnMult };
   }
 
   function present(query) {
@@ -1318,10 +1462,10 @@
     let ev;
     if (query.ownBeads) {
       const math = computeMath(loadout, chosen, myst);
-      ev = { loadout, beads: chosen, math, score: math.comboTotal || 0, plan: math.elements, safety: 0 };
+      ev = { loadout, beads: chosen, math, score: math.package || math.comboTotal || 0, plan: math.elements, safety: 0 };
     } else if (chosen.length) {
       const math = computeMath(loadout, chosen, myst);
-      ev = { loadout, beads: chosen, math, score: math.comboTotal || 0, plan: math.elements, safety: 0 };
+      ev = { loadout, beads: chosen, math, score: math.package || math.comboTotal || 0, plan: math.elements, safety: 0 };
     } else {
       const presentEls = activeElements(loadout, myst);
       const plan = presentEls.size ? presentEls : new Set(["fire", "earth"]);
