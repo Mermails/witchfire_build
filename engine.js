@@ -577,7 +577,7 @@
     "corpse-eater": "B", oracle: "C", cricket: "C", midas: "D", nemesis: "A", "all-seeing-eye": "D",
     martyr: "B", fatum: "A", striga: "S", rotweaver: "D", judgment: "B", tribunal: "C",
     "falling-star": "S", vulture: "S", whisper: "B", "soul-eater": "C", tempest: "A", "heart-eater-standin": "C",
-    fist: "A", katar: "B", "morning-star": "C", buckler: "C",
+    fist: "A", katar: "B", "morning-star": "C", buckler: "C", "sacring-bell": "S", zweihander: "A",
     fireballs: "B", firebreath: "A", "frost-cone": "A", shockwave: "B", "winter-nail": "C",
     "blight-cyst": "A", "ice-stiletto": "C", "lightning-bolt": "B", stigma: "B", "cursed-bell": "C",
     "iron-cross": "A", stormball: "A", "burning-stake": "S", "ice-sphere": "A", "rotten-fiend": "A",
@@ -1126,8 +1126,10 @@
     if (!entry) return "";
     if (entry.slot === "melee" && entry.stats) {
       const s = entry.stats;
-      const stun = s.stunnedCharged ? ` · chargé étourdi ${s.stunnedCharged}` : "";
-      return `Simple ${s.damage} · chargé ${s.charged} · spécial ${s.special}${stun}`;
+      const special = s.shockwave != null ? `${s.special} ou onde ${s.shockwave}` : s.special;
+      let stun = s.stunnedCharged ? ` · chargé étourdi ${s.stunnedCharged}` : "";
+      if (s.stunnedShockwave) stun += ` · onde étourdie ${s.stunnedShockwave}`;
+      return `Simple ${s.damage} · chargé ${s.charged} · spécial ${special}${stun}`;
     }
     if (entry.stats) {
       const s = entry.stats;
@@ -1236,6 +1238,7 @@
 
   function shownForStyle(pinned, style) {
     const tags = pinned.tags || [];
+    if (style === "populaire") return Array.isArray(pinned.sources) && pinned.sources.length > 0;
     if (style === "notable") return tags.includes("notable");
     if (tags.includes("notable") && !tags.some((tag) => PLAY_STYLES.includes(tag))) return false;
     return true;
@@ -1297,7 +1300,7 @@
     const attrs = query.attrs || null;
     const plans = plansFor(elements);
     const bag = [];
-    if (style !== "notable" && !query.communityOnly) {
+    if (style !== "notable" && style !== "populaire" && !query.communityOnly) {
       for (const plan of plans) {
         bag.push(...searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs));
       }
@@ -1370,7 +1373,7 @@
       if (!cited) decayUses[decayId] = (decayUses[decayId] || 0) + 1;
       cards.push(toCard(ev, gnosis, myst, ev.meta));
     };
-    const generatedCap = style === "notable" ? 0 : 36;
+    const generatedCap = style === "notable" || style === "populaire" ? 0 : 36;
     for (const ev of bag.filter((entry) => entry.meta && entry.meta.community)) take(ev);
     const byScore = bag.slice().sort((a, b) => b.score - a.score);
     let generated = 0;
@@ -1565,9 +1568,11 @@
     if (gun.slot === "melee") {
       const blow = gun.stats;
       const row = (name, hit) => ({ name, hit, crit: hit, avg: hit, dps: null });
-      const rows = [row("Coup simple", blow.damage), row("Coup chargé", blow.charged), row("Attaque spéciale", blow.special)];
+      const rows = [row("Coup simple", blow.damage), row("Coup chargé", blow.charged), row(blow.shockwave != null ? "Taille" : "Attaque spéciale", blow.special)];
+      if (blow.shockwave != null) rows.push(row("Onde de feu", blow.shockwave));
       if (blow.stunnedCharged) rows.push(row("Chargé sur étourdi", blow.stunnedCharged));
       if (blow.stunnedSpecial) rows.push(row("Spécial sur étourdi", blow.stunnedSpecial));
+      if (blow.stunnedShockwave) rows.push(row("Onde de feu sur étourdi", blow.stunnedShockwave));
       notes.push("La mêlée n'a pas de cadence publiée. Le coup chargé et l'attaque spéciale demandent la charge. La ligne étourdi est déjà le chiffre du wiki, sans ×2 supplémentaire.");
       return {
         stats, math, gun, gunKey, rows, notes, melee: true, burnMult: 1,

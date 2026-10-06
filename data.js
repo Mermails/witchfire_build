@@ -140,6 +140,15 @@
     meleeWeapon("buckler", "Buckler", 3, { damage: 20, charged: 30, special: 60, reach: 0 },
       ["Maintenir la mêlée bloque les dégâts de face. Lever le bouclier avec un peu de charge blesse les proches de 30.", "La parade au bon moment renvoie un projectile perforant de 60, ou 72 en coup à la tête.", "La parade peut partir sans charge pleine. Le coût dépend de la force du coup reçu.", "Sans charge, les coups redeviennent des poings."],
       "Récompense du Tourment II, lancé à l'étude profane.", "https://witchfire.wiki.gg/wiki/Buckler"),
+    meleeWeapon("zweihander", "Zweihander", 3, { damage: 20, charged: 50, special: 180, shockwave: 120, stunnedCharged: 200, stunnedSpecial: 600, stunnedShockwave: 480 },
+      ["Coup de pommeau. Le chargé vaut 50, ou 200 sur un étourdi.", "Le spécial est une taille lourde : 180, ou 600 sur un étourdi. Verticale au repos ou en avançant, balayage sur le côté.", "Tenir deux secondes enflamme la lame et lâche une onde de feu de 120, ou 480 sur un étourdi. Elle pose la Brûlure de base +25 %, sensible aux perles. L'onde va tout droit et s'arrête sur le décor. Le wiki dit qu'elle faiblit après la première cible, sans donner le chiffre."],
+      "Plantée dans le dos d'un moine, dans la tour de l'Œil de Dieu à Irongate Castle, derrière le trône du Dimacher. Irongate s'ouvre au Gnosis III.",
+      "https://witchfire.wiki.gg/wiki/Zweihander",
+      { elements: ["fire"], applies: { burn: { from: 1, bead: true, mag: { 1: 0.25, 2: 0.25, 3: 0.25 }, note: "Seule l'onde après deux secondes de charge pose la Brûlure. Le coup et la taille ne la posent pas." } } }),
+    meleeWeapon("sacring-bell", "Sacring Bell", 4, { damage: 20, charged: 100, special: 15, stunnedCharged: 400, stunnedSpecial: 30, reach: 18 },
+      ["Coup chargé à 100. Sur un étourdi : 400.", "Le spécial sonne la cloche : 15 dégâts et un étourdissement dans un rayon de 18 m. Sur un étourdi : 30.", "La frappe elle-même est courte. Les 18 m sont ceux de l'onde, pas de l'allonge du coup."],
+      "Cathédrale de saint Aurélien le Patient, au Marshland, près du cercueil de pierre central. Il faut avoir fini la quête Without a Heart. Le Marshland s'ouvre au Gnosis IV.",
+      "https://witchfire.wiki.gg/wiki/Sacring_Bell"),
   ];
 
   const spells = [
@@ -746,8 +755,9 @@
   function w(id, name, weaponType, range, elements, gnosis, stats, mysteria, applies, found, url) {
     return { id, name, slot: "weapon", weaponType, range, elements, gnosis, stats, mysteria, applies, found, url, demonic: false };
   }
-  function meleeWeapon(id, name, gnosis, stats, notes, found, url) {
-    return { id, name, slot: "melee", weaponType: "Mêlée", range: "melee", elements: [], gnosis, stats, mysteria: notes, applies: {}, found, url, demonic: false };
+  function meleeWeapon(id, name, gnosis, stats, notes, found, url, extra) {
+    const more = extra || {};
+    return { id, name, slot: "melee", weaponType: "Mêlée", range: "melee", elements: more.elements || [], gnosis, stats, mysteria: notes, applies: more.applies || {}, found, url, demonic: false };
   }
   function d(id, name, weaponType, elements, gnosis, stats, mysteria, applies, found, url) {
     const standard = !!stats.standard;
