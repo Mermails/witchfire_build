@@ -800,6 +800,11 @@ summary:hover { color: var(--brass); }
 .badge .el-marks { margin-right: 0; }
 .gear-name .el-marks, .slot .name .el-marks { margin-right: 0; }
 .badge.score { color: var(--brass); border-color: rgba(216, 185, 109, 0.3); font-variant-numeric: tabular-nums; }
+.badge.play {
+  color: var(--brass);
+  border-color: rgba(216, 185, 109, 0.34);
+  background: rgba(216, 185, 109, 0.08);
+}
 
 .blurb { margin: 0; color: var(--ink-2); max-width: 92ch; }
 

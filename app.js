@@ -224,6 +224,7 @@
     const comboShown = build.math.package || build.math.comboTotal;
     if (comboShown) meta.appendChild(badge(`Combo ${WF.fmt(comboShown)}`, "score"));
     for (const el of build.elements) meta.appendChild(badge(el.name, el.id));
+    for (const node of playBadges(build)) meta.appendChild(node);
     if (build.custom) meta.appendChild(badge("Personnel", ""));
     if (build.community && build.cited !== false) meta.appendChild(badge("Cité en ligne", ""));
     btn.appendChild(meta);
@@ -304,6 +305,22 @@
     return wrap;
   }
 
+  const PLAY_LABELS = [
+    ["elementaire", "Élémentaire"],
+    ["foules", "Foules"],
+    ["boss", "Boss et élites"],
+    ["distance", "Distance"],
+    ["corps", "Corps à corps"],
+    ["survie", "Survie"],
+    ["tir", "Tir pur"],
+    ["notable", "Notable"],
+  ];
+
+  function playBadges(build) {
+    const tags = build.tags || [];
+    return PLAY_LABELS.filter(([id]) => tags.includes(id)).map(([id, label]) => badge(label, "play"));
+  }
+
   function badge(text, cls) {
     const span = document.createElement("span");
     span.className = "badge " + (cls || "");
@@ -346,12 +363,11 @@
     });
     detailHead.append(h, scoreBlock(build.score), close);
     root.appendChild(detailHead);
-    if (build.elements.length) {
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      for (const el of build.elements) meta.appendChild(badge(el.name, el.id));
-      root.appendChild(meta);
-    }
+    const detailMeta = document.createElement("div");
+    detailMeta.className = "meta";
+    for (const el of build.elements) detailMeta.appendChild(badge(el.name, el.id));
+    for (const node of playBadges(build)) detailMeta.appendChild(node);
+    if (detailMeta.childElementCount) root.appendChild(detailMeta);
     const actions = document.createElement("div");
     actions.className = "row-actions";
     const saved = findSaved(build);
@@ -805,7 +821,7 @@
 
   function normalizeFilters(raw) {
     if (!raw || typeof raw !== "object") return null;
-    const styles = ["elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
+    const styles = ["toutes", "elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
     const sorts = ["score", "combo", "name"];
     const scoreCuts = ["all", "top5", "top8", "half", "near"];
     const mysteria = ["auto", "1", "2", "3"];

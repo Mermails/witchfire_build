@@ -1052,6 +1052,54 @@
     return entry.summary || "";
   }
 
+  const CROWD_SPELLS = {
+    fireballs: true, firebreath: true, "frost-cone": true, stormball: true, shockwave: true,
+    miasma: true, "rotten-fiend": true, "ice-sphere": true, "burning-stake": true,
+    cornucopia: true, "cursed-bell": true, "falling-star": true,
+  };
+
+  function inferPlayTags(ev) {
+    const loadout = ev.loadout || {};
+    const math = ev.math || {};
+    const guns = [loadout.primary, loadout.secondary].filter(Boolean);
+    const long = guns.some((gun) => gun.range === "long");
+    const close = guns.some((gun) => gun.range === "close");
+    const sniper = guns.some((gun) => gun.stats && gun.stats.unwieldy === "sniper");
+    const elemental = !!(math.package || math.comboTotal || math.shockChain || math.shockFirst || math.takenBurn || math.takenFreeze);
+    const crowd = !!(math.burn && math.burn.aoe)
+      || [loadout.light, loadout.heavy, loadout.demonic].some((entry) => entry && CROWD_SPELLS[entry.id]);
+    const primary = loadout.primary;
+    const rangeTag = primary && primary.range === "close" ? "corps" : primary && primary.range === "long" ? "distance" : close ? "corps" : long ? "distance" : "";
+    const otherRange = rangeTag === "corps" && long ? "distance" : rangeTag === "distance" && close ? "corps" : "";
+    const candidates = [];
+    if (elemental) candidates.push("elementaire");
+    if (crowd) candidates.push("foules");
+    if (math.decay && (primary && primary.range === "long" || !crowd)) candidates.push("boss");
+    if (rangeTag) candidates.push(rangeTag);
+    if (otherRange) candidates.push(otherRange);
+    if (sniper) candidates.push("survie");
+    if (guns.length && !elemental) candidates.push("tir");
+    const tags = [];
+    for (const tag of candidates) {
+      if (tags.length >= 3) break;
+      if (!tags.includes(tag)) tags.push(tag);
+    }
+    if (tags.length < 2 && guns.length && !elemental && !tags.includes("tir")) tags.push("tir");
+    if (!tags.length) tags.push("elementaire");
+    return tags;
+  }
+
+  function tagsFor(ev, meta) {
+    const cited = (meta && meta.tags) || [];
+    const play = cited.filter((tag) => tag !== "fin" && tag !== "personnel");
+    if (play.length >= 2) return cited;
+    const tags = cited.slice();
+    for (const tag of inferPlayTags(ev)) {
+      if (!tags.includes(tag)) tags.push(tag);
+    }
+    return tags;
+  }
+
   function toCard(ev, gnosis, myst, meta) {
     const phase = phaseOf(Math.max(gnosis, meta && meta.gnosis || 0));
     const elements = ev.math.elements.map((id) => DATA.EL[id]);
@@ -1066,7 +1114,7 @@
       gnosis,
       mysterium: myst,
       score: Math.round(ev.score),
-      tags: (meta && meta.tags) || ["elementaire"],
+      tags: tagsFor(ev, meta),
       elements,
       plan: ev.plan,
       loadout: ev.loadout,
@@ -1118,7 +1166,43 @@
     return 0;
   }
 
+  function recommendAll(query) {
+    const merged = [];
+    const seen = new Map();
+    const locked = [];
+    const lockedSeen = new Set();
+    let hiddenHints = 0;
+    let sample = null;
+    const passes = [["elementaire", false]];
+    for (const style of PLAY_STYLES) {
+      if (style !== "elementaire") passes.push([style, true]);
+    }
+    passes.push(["notable", true]);
+    for (const [style, communityOnly] of passes) {
+      const part = recommend(Object.assign({}, query, { style, communityOnly }));
+      sample = sample || part;
+      hiddenHints += part.hiddenHints || 0;
+      for (const card of part.builds) {
+        const prev = seen.get(card.id);
+        if (prev) {
+          if (card.score > prev.score) prev.score = card.score;
+          continue;
+        }
+        seen.set(card.id, card);
+        merged.push(card);
+      }
+      for (const card of part.locked || []) {
+        if (lockedSeen.has(card.id)) continue;
+        lockedSeen.add(card.id);
+        locked.push(card);
+      }
+    }
+    merged.sort((a, b) => b.score - a.score);
+    return Object.assign({}, sample, { builds: merged, locked, hiddenHints });
+  }
+
   function recommend(query) {
+    if ((query.style || "elementaire") === "toutes") return recommendAll(query);
     const gnosis = clamp(query.gnosis, 0, 7);
     const myst = assumedMysterium(gnosis, query.mysterium);
     const style = query.style || "elementaire";
@@ -1128,7 +1212,7 @@
     const attrs = query.attrs || null;
     const plans = plansFor(elements);
     const bag = [];
-    if (style !== "notable") {
+    if (style !== "notable" && !query.communityOnly) {
       for (const plan of plans) {
         bag.push(...searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs));
       }
