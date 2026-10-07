@@ -615,6 +615,13 @@
     return total;
   }
 
+  function averageDps(loadout) {
+    if (!loadout) return 0;
+    const guns = [loadout.primary, loadout.secondary].map(sustainedDps).filter((value) => value > 0);
+    if (!guns.length) return 0;
+    return guns.reduce((sum, value) => sum + value, 0) / guns.length;
+  }
+
   function opinion(loadout) {
     let total = 0;
     for (const key of ["primary", "secondary", "demonic", "melee", "light", "heavy", "relic", "ring", "fetish"]) {
@@ -1201,6 +1208,7 @@
       gnosis,
       mysterium: myst,
       score: Math.round(ev.score),
+      dps: averageDps(ev.loadout),
       tags: tagsFor(ev, meta),
       elements,
       plan: ev.plan,
@@ -1681,11 +1689,15 @@
       burnBaseUsed: math.burn && math.burn.item.name,
       expectedStake: tick,
       unranked: unrankedItems(),
+      echoDps: sustainedDps(item("echo")),
+      hungerDps: sustainedDps(item("hunger")),
+      pairDps: averageDps({ primary: item("echo"), secondary: item("hunger") }),
     };
   }
 
   root.WF = {
     recommend, explainLab, catalog, item, rosarySlots, phaseOf, assumedMysterium, computeMath, selfCheck, fmt, statsLine,
+    averageDps,
     deriveAttributes, simulate, present, attributes: ATTRS,
   };
 })(typeof window !== "undefined" ? window : globalThis);

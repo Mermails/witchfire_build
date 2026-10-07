@@ -112,12 +112,15 @@
     }
   }
 
+  function compareBuilds(a, b) {
+    if (state.sort === "combo") return (b.math.package || b.math.comboTotal || 0) - (a.math.package || a.math.comboTotal || 0);
+    if (state.sort === "name") return a.name.localeCompare(b.name, "fr");
+    if (state.sort === "dps") return (b.dps || 0) - (a.dps || 0) || b.score - a.score;
+    return b.score - a.score;
+  }
+
   function sortedBuilds() {
-    const list = state.result.builds.slice();
-    if (state.sort === "combo") list.sort((a, b) => (b.math.package || b.math.comboTotal || 0) - (a.math.package || a.math.comboTotal || 0));
-    else if (state.sort === "name") list.sort((a, b) => a.name.localeCompare(b.name, "fr"));
-    else list.sort((a, b) => b.score - a.score);
-    return list;
+    return state.result.builds.slice().sort(compareBuilds);
   }
 
   function keepByScore(list, reference) {
@@ -177,7 +180,7 @@
     }
     const wrap = $("locked-wrap");
     wrap.innerHTML = "";
-    const locked = keepByScore(state.result.locked, pool.length ? pool : state.result.locked);
+    const locked = keepByScore(state.result.locked, pool.length ? pool : state.result.locked).sort(compareBuilds);
     if (!state.onlyFav && locked.length) {
       const title = document.createElement("h2");
       title.textContent = "Encore verrouillés à ce Gnosis";
@@ -224,6 +227,7 @@
     meta.appendChild(badge(`Gnosis ${build.gnosis}`, ""));
     const comboShown = build.math.package || build.math.comboTotal;
     if (comboShown) meta.appendChild(badge(`Combo ${WF.fmt(comboShown)}`, "score"));
+    if (build.dps) meta.appendChild(badge(`DPS ${WF.fmt(build.dps, 0)}`, "score"));
     for (const el of build.elements) meta.appendChild(badge(el.name, el.id));
     for (const node of playBadges(build)) meta.appendChild(node);
     if (build.custom) meta.appendChild(badge("Personnel", ""));
@@ -366,6 +370,7 @@
     root.appendChild(detailHead);
     const detailMeta = document.createElement("div");
     detailMeta.className = "meta";
+    if (build.dps) detailMeta.appendChild(badge(`DPS ${WF.fmt(build.dps, 0)}`, "score"));
     for (const el of build.elements) detailMeta.appendChild(badge(el.name, el.id));
     for (const node of playBadges(build)) detailMeta.appendChild(node);
     if (detailMeta.childElementCount) root.appendChild(detailMeta);
@@ -823,7 +828,7 @@
   function normalizeFilters(raw) {
     if (!raw || typeof raw !== "object") return null;
     const styles = ["populaire", "toutes", "elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
-    const sorts = ["score", "combo", "name"];
+    const sorts = ["score", "combo", "dps", "name"];
     const scoreCuts = ["all", "top5", "top8", "half", "near"];
     const mysteria = ["auto", "1", "2", "3"];
     const gnosis = Number(raw.gnosis);
