@@ -784,12 +784,14 @@
       ["Arsenal", { flesh: 20, blood: 40, mind: 25, witchery: 20, arsenal: 90, faith: 40 }],
     ];
     const attrBox = $("attr-filters");
+    let attrRun = 0;
     repaintAttrFilters = () => {
       attrBox.replaceChildren();
       attrBox.appendChild(attrFields(state.attrs, () => {
         rememberFilters();
-        run();
-      }));
+        clearTimeout(attrRun);
+        attrRun = setTimeout(run, 120);
+      }, { textual: true }));
     };
     for (const [label, attrs] of presetRows) {
       const btn = document.createElement("button");
@@ -1543,14 +1545,70 @@
     return wrap;
   }
 
-  function attrFields(attrs, onChange) {
+  function parseAttrText(raw) {
+    const text = String(raw == null ? "" : raw).trim().toLowerCase().replace(",", ".");
+    if (!text) return null;
+    if (text === "max" || text === "sans limite") return 100;
+    if (text === "min" || text === "zero" || text === "zéro") return 0;
+    const match = text.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const value = Math.round(Number(match[0]));
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  function attrFields(attrs, onChange, options) {
+    const textual = !!(options && options.textual);
     const box = document.createElement("div");
     box.className = "form-grid";
     for (const attr of WF.attributes) {
-      box.appendChild(numberField(attr.name, attrs[attr.id] || 0, 0, 100, (value) => {
+      if (!textual) {
+        box.appendChild(numberField(attr.name, attrs[attr.id] || 0, 0, 100, (value) => {
+          attrs[attr.id] = value;
+          onChange();
+        }));
+        continue;
+      }
+      const wrap = document.createElement("label");
+      wrap.className = "attr-line";
+      const title = document.createElement("span");
+      title.className = "inline-num";
+      const name = document.createElement("span");
+      name.textContent = attr.name;
+      const text = document.createElement("input");
+      text.type = "text";
+      text.className = "attr-text";
+      text.inputMode = "text";
+      text.value = String(attrs[attr.id] || 0);
+      text.setAttribute("aria-label", attr.name);
+      title.append(name, text);
+      const range = document.createElement("input");
+      range.type = "range";
+      range.min = "0";
+      range.max = "100";
+      range.value = String(attrs[attr.id] || 0);
+      const commit = (value) => {
         attrs[attr.id] = value;
+        text.value = String(value);
+        range.value = String(value);
+        paintRange(range);
         onChange();
-      }));
+      };
+      text.addEventListener("change", () => {
+        const parsed = parseAttrText(text.value);
+        if (parsed == null) {
+          text.value = String(attrs[attr.id] || 0);
+          return;
+        }
+        commit(parsed);
+      });
+      text.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") text.blur();
+      });
+      range.addEventListener("input", () => commit(Number(range.value)));
+      wireRange(range);
+      wrap.append(title, range);
+      box.appendChild(wrap);
     }
     return box;
   }

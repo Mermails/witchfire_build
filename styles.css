@@ -310,7 +310,7 @@ h1.wordmark {
 }
 .panel > h2 { font-size: 27px; margin-bottom: 4px; }
 
-.filters { position: sticky; top: calc(var(--header-h) + 14px); }
+.filters { position: static; }
 
 fieldset {
   border: 0;
@@ -664,6 +664,17 @@ summary:hover { color: var(--brass); }
 .filter-note { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--faint); }
 .score-note { margin: 4px 2px 14px; }
 #attr-filters .form-grid { gap: 8px; }
+.attr-line .inline-num { align-items: center; }
+input.attr-text {
+  width: 5.2em;
+  margin: 0;
+  padding: 3px 7px;
+  border-radius: 7px;
+  color: var(--brass);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 
 .cards { display: grid; gap: 16px; }
 

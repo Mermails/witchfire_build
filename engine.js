@@ -491,22 +491,6 @@
     return "sans perle de malus";
   }
 
-  function combinations(list, k) {
-    const out = [];
-    const n = list.length;
-    if (k === 0) return [[]];
-    const walk = (start, acc) => {
-      if (acc.length === k) { out.push(acc.slice()); return; }
-      for (let i = start; i < n; i++) {
-        acc.push(list[i]);
-        walk(i + 1, acc);
-        acc.pop();
-      }
-    };
-    walk(0, []);
-    return out;
-  }
-
   const UPTIME = {
     rotweaver: 1, stigma: 0.9, eye: 0.75, cyst: 0.7, judgment: 0.65, koschei: 0.6,
     fiend: 0.62, miasma: 0.42, excreta: 0.4, book: 0.3, parasite: 0.8,
@@ -515,6 +499,65 @@
   function uptimeOf(decay) {
     if (!decay || !decay.spec || !decay.spec.profile) return 0.6;
     return UPTIME[decay.spec.profile] == null ? 0.7 : UPTIME[decay.spec.profile];
+  }
+
+  function packageOnly(loadout, beads, myst) {
+    const mode = beadMode(beads);
+    const got = applied(loadout, myst);
+    const decay = bestDecay(got.decays, mode, myst);
+    const burn = bestBurn(got.burns, mode);
+    const shock = bestShock(got.shocks);
+    const freeze = got.freezes.slice().sort((a, b) => b.reliable - a.reliable)[0] || null;
+    const shot = referenceShot(loadout);
+    let comboTotal = 0;
+    let comboTick = 0;
+    let shockChain = 0;
+    let shockSecond = 0;
+    let shockFirst = 0;
+    let tickShockTotal = 0;
+    let tickShockSecondTotal = 0;
+    let takenBurnFreeze = 0;
+    let takenBurn = 0;
+    let packageScore = 0;
+    const mags = shockMagnitudes(shock, mode);
+    if (decay && decay.row && burn) {
+      const mult = burnMultiplier(burn.base, burn.bead, mode);
+      comboTick = decay.row.tick * mult * 1.5;
+      comboTotal = decay.row.total * mult * 1.5;
+    } else if (decay && decay.row) {
+      comboTotal = decay.row.total;
+      comboTick = decay.row.tick;
+    }
+    if (burn && mags) {
+      const bMult = burnMultiplier(burn.base, burn.bead, mode);
+      shockChain = shot * mags.first * 2.1 * bMult;
+      shockSecond = shockChain / 2;
+    } else if (mags) {
+      shockFirst = shot * mags.first;
+      shockSecond = shot * mags.second;
+    }
+    const burnMult = burn ? burnMultiplier(burn.base, burn.bead, mode) : 1;
+    if (burn) takenBurn = shot * burnMult;
+    if (burn && freeze) takenBurnFreeze = shot * burnMult * 1.5;
+    if (freeze && decay && decay.row && !burn) {
+      comboTick = decay.row.tick * 1.5;
+      comboTotal = decay.row.total * 1.5;
+    }
+    if (decay && decay.row && mags) {
+      tickShockTotal = comboTick * mags.first * decay.row.ticks;
+      tickShockSecondTotal = comboTick * mags.second * decay.row.ticks;
+    }
+    if (decay && decay.row) packageScore = comboTotal + tickShockTotal + tickShockSecondTotal;
+    else if (shockChain) {
+      packageScore = shockChain + shockSecond;
+      if (takenBurnFreeze) packageScore += takenBurnFreeze - shot;
+    } else if (shockFirst) {
+      packageScore = shockFirst + shockSecond;
+      if (freeze) packageScore += shot * 0.5;
+    } else if (takenBurnFreeze) packageScore = takenBurnFreeze - shot;
+    else if (takenBurn) packageScore = takenBurn - shot;
+    else if (freeze) packageScore = shot * 0.5;
+    return { package: packageScore, mode, decay, freeze };
   }
 
   function chooseBeads(loadout, slotCount, myst, style, gnosis, attrs) {
@@ -535,30 +578,51 @@
     if (style === "survie") want.add("healing");
     if (loadout.light && loadout.light.spellType === "light") want.add("light-charge");
     const candidates = DATA.beads.filter((b) => b.gnosis <= gnosis && want.has(b.id) && attrsCover(beadGates(b), attrs));
-    const sized = [[]];
+    const utilityOf = (bead) => {
+      let score = (bead.utility || 0) * 12;
+      if (bead.tags.shotgun && hasShotgun) score += 80;
+      if (bead.tags.sniper && hasSniper) score += 70;
+      if (bead.tags.dash && dash) score += style === "survie" ? 60 : 35;
+      if (bead.tags.duration && (got.decays.length || got.freezes.length)) score += 25;
+      if (bead.tags.survival && style === "survie") score += 40;
+      if (bead.tags.crit && style === "distance") score += 20;
+      if (bead.tags.spells && (loadout.light || loadout.heavy)) score += 15;
+      if (bead.id === "acute-ailment" && got.freezes.length && !got.decays.length) score -= 50;
+      return score;
+    };
+    const scoreSet = (set) => {
+      const rough = packageOnly(loadout, set, myst);
+      const timed = !!(rough.decay && rough.decay.row);
+      let score = (rough.package || 0) * (timed ? uptimeOf(rough.decay && rough.decay.decay) : 1);
+      for (const bead of set) score += utilityOf(bead);
+      if (rough.freeze && rough.mode === "acute") score -= 30;
+      return score;
+    };
     const k = Math.min(slotCount, candidates.length);
-    if (k > 0) sized.push(...combinations(candidates, k));
-    let best = { beads: [], score: -Infinity, math: null };
-    for (const set of sized) {
-      const math = computeMath(loadout, set, myst);
-      const uptime = uptimeOf(math.decay && math.decay.decay);
-      const timed = !!(math.decay && math.decay.row);
-      let score = (math.package || 0) * (timed ? uptime : 1);
-      for (const b of set) {
-        score += (b.utility || 0) * 12;
-        if (b.tags.shotgun && hasShotgun) score += 80;
-        if (b.tags.sniper && hasSniper) score += 70;
-        if (b.tags.dash && dash) score += style === "survie" ? 60 : 35;
-        if (b.tags.duration && (got.decays.length || got.freezes.length)) score += 25;
-        if (b.tags.survival && style === "survie") score += 40;
-        if (b.tags.crit && style === "distance") score += 20;
-        if (b.tags.spells && (loadout.light || loadout.heavy)) score += 15;
-        if (b.id === "acute-ailment" && got.freezes.length && !got.decays.length) score -= 50;
+    const power = candidates.find((bead) => bead.id === "ailment-power") || null;
+    const acute = candidates.find((bead) => bead.id === "acute-ailment") || null;
+    const fillers = candidates
+      .filter((bead) => bead.id !== "ailment-power" && bead.id !== "acute-ailment")
+      .map((bead, index) => ({ bead, index, utility: utilityOf(bead) }))
+      .sort((a, b) => b.utility - a.utility || a.index - b.index);
+    const modes = [
+      { required: [] },
+      power ? { required: [power] } : null,
+      acute ? { required: [acute] } : null,
+      power && acute ? { required: [power, acute] } : null,
+    ];
+    let best = { beads: [], score: scoreSet([]) };
+    if (k > 0) {
+      for (const spec of modes) {
+        if (!spec || spec.required.length > k) continue;
+        const need = k - spec.required.length;
+        if (need > fillers.length) continue;
+        const set = spec.required.concat(fillers.slice(0, need).map((row) => row.bead));
+        const score = scoreSet(set);
+        if (score > best.score) best = { beads: set, score };
       }
-      if (math.freeze && beadMode(set) === "acute") score -= 30;
-      if (score > best.score) best = { beads: set, score, math };
     }
-    best.math = best.math || computeMath(loadout, best.beads, myst);
+    best.math = computeMath(loadout, best.beads, myst);
     return best;
   }
 
