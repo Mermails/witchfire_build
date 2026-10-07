@@ -26,6 +26,7 @@
   let filterEpoch = 0;
   let vaultReady = false;
   let filterTimer = 0;
+  let appliedQuery = "";
   let repaintAttrFilters = () => {};
   const SLOTS = ["primary", "secondary", "demonic", "melee", "light", "heavy", "relic", "ring", "fetish"];
   const SLOT_LABELS = {
@@ -61,6 +62,8 @@
       showLocked: state.showLocked,
     });
     const ms = Math.round(performance.now() - started);
+    appliedQuery = engineQueryKey();
+    markEnginePending();
     renderStatus(ms);
     renderBuilds();
     if (state.open) {
@@ -711,9 +714,8 @@
       btn.addEventListener("click", () => {
         state.gnosis = phase.gnosis;
         $("gnosis").value = String(phase.gnosis);
-        markPhases();
-        rememberFilters();
-        run();
+        paintGnosisChrome();
+        stageFilters();
       });
       phaseRow.appendChild(btn);
     }
@@ -728,8 +730,7 @@
         if (state.elements.includes(id)) state.elements = state.elements.filter((el) => el !== id);
         else state.elements.push(id);
         btn.classList.toggle("is-on");
-        rememberFilters();
-        run();
+        stageFilters();
       });
       box.appendChild(btn);
     }
@@ -743,16 +744,15 @@
     }
     $("gnosis").addEventListener("input", () => {
       state.gnosis = Number($("gnosis").value);
-      markPhases();
-      rememberFilters();
-      run();
+      paintGnosisChrome();
+      stageFilters();
     });
     for (const id of ["mysterium", "style", "weapon", "sort"]) {
       $(id).addEventListener("change", () => {
         state[id] = $(id).value;
         rememberFilters();
         if (id === "sort") renderBuilds();
-        else run();
+        else markEnginePending();
       });
     }
     $("score-cut").addEventListener("change", () => {
@@ -762,8 +762,7 @@
     });
     $("locked").addEventListener("change", () => {
       state.showLocked = $("locked").checked;
-      rememberFilters();
-      run();
+      stageFilters();
     });
     $("only-fav").addEventListener("change", () => {
       state.onlyFav = $("only-fav").checked;
@@ -772,8 +771,7 @@
     });
     $("only-covered").addEventListener("change", () => {
       state.onlyCovered = $("only-covered").checked;
-      rememberFilters();
-      run();
+      stageFilters();
     });
     const presets = $("attr-presets");
     const presetRows = [
@@ -784,13 +782,10 @@
       ["Arsenal", { flesh: 20, blood: 40, mind: 25, witchery: 20, arsenal: 90, faith: 40 }],
     ];
     const attrBox = $("attr-filters");
-    let attrRun = 0;
     repaintAttrFilters = () => {
       attrBox.replaceChildren();
       attrBox.appendChild(attrFields(state.attrs, () => {
-        rememberFilters();
-        clearTimeout(attrRun);
-        attrRun = setTimeout(run, 120);
+        stageFilters();
       }, { textual: true }));
     };
     for (const [label, attrs] of presetRows) {
@@ -801,7 +796,7 @@
         state.attrs = Object.assign({}, attrs);
         rememberFilters();
         syncFilterControls();
-        run();
+        markEnginePending();
       });
       presets.appendChild(btn);
     }
@@ -889,6 +884,43 @@
       onlyFav: state.onlyFav,
       savedAt: Date.now(),
     };
+  }
+
+  function engineQueryKey() {
+    const attrs = {};
+    for (const attr of WF.attributes) attrs[attr.id] = state.attrs[attr.id] || 0;
+    return JSON.stringify({
+      gnosis: state.gnosis,
+      mysterium: state.mysterium,
+      style: state.style,
+      elements: state.elements.slice().sort(),
+      weapon: state.weapon,
+      attrs,
+      onlyCovered: !!state.onlyCovered,
+      showLocked: !!state.showLocked,
+    });
+  }
+
+  function markEnginePending() {
+    const pending = engineQueryKey() !== appliedQuery;
+    const button = $("rerun");
+    const note = $("rerun-note");
+    if (button) button.classList.toggle("is-pending", pending);
+    if (note) note.hidden = !pending;
+  }
+
+  function stageFilters() {
+    rememberFilters();
+    markEnginePending();
+  }
+
+  function paintGnosisChrome() {
+    $("gnosis-value").textContent = String(state.gnosis);
+    paintRange($("gnosis"));
+    const phase = WF.phaseOf(state.gnosis);
+    const slots = WF.rosarySlots(state.gnosis);
+    $("gnosis-hint").textContent = `${phase.name} de partie · ${slots} perle${slots > 1 ? "s" : ""} de rosaire.`;
+    markPhases();
   }
 
   function rememberFilters() {
