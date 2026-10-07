@@ -1214,6 +1214,33 @@ summary:hover { color: var(--brass); }
   font-size: 13.5px;
   line-height: 1.5;
 }
+.codex-card .mysteria {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 2px 0 8px;
+}
+.codex-card .myst-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.codex-card .myst-row dt {
+  margin: 0;
+  color: var(--brass);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+}
+.codex-card .myst-row dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
 .codex-card .sub {
   position: relative;
   margin: 6px 0;
