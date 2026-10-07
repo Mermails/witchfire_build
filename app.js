@@ -3,7 +3,7 @@
   const state = {
     gnosis: 5,
     mysterium: "auto",
-    style: "elementaire",
+    style: "populaire",
     elements: [],
     weapon: "",
     sort: "score",
@@ -162,7 +162,8 @@
       root.appendChild(note);
     }
     if (list.length) {
-      if (state.style === "notable") root.appendChild(sectionTitle("Notables"));
+      if (state.style === "populaire") root.appendChild(sectionTitle("Populaires"));
+      else if (state.style === "notable") root.appendChild(sectionTitle("Notables"));
       else if (mine.length || outside.length) root.appendChild(sectionTitle("Proposés par le moteur"));
       for (const build of list) root.appendChild(card(build, false));
     } else if (state.onlyFav && !mine.length && !outside.length) {
@@ -821,7 +822,7 @@
 
   function normalizeFilters(raw) {
     if (!raw || typeof raw !== "object") return null;
-    const styles = ["toutes", "elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
+    const styles = ["populaire", "toutes", "elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
     const sorts = ["score", "combo", "name"];
     const scoreCuts = ["all", "top5", "top8", "half", "near"];
     const mysteria = ["auto", "1", "2", "3"];
@@ -834,7 +835,7 @@
     return {
       gnosis: Number.isFinite(gnosis) ? Math.max(0, Math.min(7, Math.round(gnosis))) : 5,
       mysterium: mysteria.includes(String(raw.mysterium)) ? String(raw.mysterium) : "auto",
-      style: styles.includes(raw.style) ? raw.style : "elementaire",
+      style: styles.includes(raw.style) ? raw.style : "populaire",
       elements: Array.isArray(raw.elements) ? raw.elements.filter((id) => elementIds.includes(id)) : [],
       weapon: typeof raw.weapon === "string" ? raw.weapon : "",
       sort: sorts.includes(raw.sort) ? raw.sort : "score",
