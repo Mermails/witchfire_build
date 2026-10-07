@@ -1872,6 +1872,56 @@
     }
   }
 
+  function mysteriumParts(lines) {
+    const buckets = { M1: [], M2: [], M3: [] };
+    const extra = [];
+    const mark = /M([123])\s*:/g;
+    for (const line of lines || []) {
+      const hits = [...line.matchAll(mark)];
+      if (!hits.length) {
+        extra.push(line);
+        continue;
+      }
+      if (hits[0].index > 0) {
+        const lead = line.slice(0, hits[0].index).trim();
+        if (lead) extra.push(lead);
+      }
+      for (let i = 0; i < hits.length; i++) {
+        const start = hits[i].index + hits[i][0].length;
+        const end = i + 1 < hits.length ? hits[i + 1].index : line.length;
+        const text = line.slice(start, end).trim();
+        if (text) buckets["M" + hits[i][1]].push(text);
+      }
+    }
+    return { buckets, extra };
+  }
+
+  function appendMysteria(card, entry) {
+    const { buckets, extra } = mysteriumParts(entry.mysteria);
+    const hasLevel = ["M1", "M2", "M3"].some((key) => buckets[key].length);
+    if (hasLevel) {
+      const dl = document.createElement("dl");
+      dl.className = "mysteria";
+      for (const key of ["M1", "M2", "M3"]) {
+        const row = document.createElement("div");
+        row.className = "myst-row";
+        const dt = document.createElement("dt");
+        dt.textContent = { M1: "I", M2: "II", M3: "III" }[key];
+        const dd = document.createElement("dd");
+        dd.textContent = buckets[key].join(" ") || "Le wiki ne détaille pas ce palier.";
+        row.append(dt, dd);
+        dl.appendChild(row);
+      }
+      card.appendChild(dl);
+    }
+    for (const line of extra) {
+      const li = document.createElement("p");
+      li.className = "sub";
+      li.textContent = line;
+      card.appendChild(li);
+    }
+  }
+
   function renderCodex(which) {
     const nav = $("codex-nav");
     nav.innerHTML = "";
@@ -1919,14 +1969,7 @@
       p.className = "codex-meta";
       p.textContent = [`Gnosis ${entry.gnosis}`, WF.statsLine(entry), entry.found || ""].filter(Boolean).join(" · ");
       card.append(head, p);
-      if (entry.mysteria) {
-        for (const line of entry.mysteria) {
-          const li = document.createElement("p");
-          li.className = "sub";
-          li.textContent = line;
-          card.appendChild(li);
-        }
-      }
+      appendMysteria(card, entry);
       if (entry.url) {
         const a = document.createElement("a");
         a.href = entry.url;
