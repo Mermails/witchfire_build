@@ -560,8 +560,167 @@
     return { package: packageScore, mode, decay, freeze };
   }
 
+  const DUTY_TEXT = {
+    clear: "nettoie les ennemis normaux",
+    reach: "gère les élites ou la longue portée",
+    burst: "frappe au contact",
+    flex: "tient la moyenne portée",
+  };
+  function lightRoleText(spell) {
+    const job = spellJob(spell);
+    if (job === "control") return "contrôle le groupe";
+    if (job === "burst") return "pose son malus sur la cible";
+    if (job === "emergency") return "couvre une urgence";
+    return "";
+  }
+
+  function heavyRoleText(spell) {
+    const job = spellJob(spell);
+    if (job === "burst") return "sert de gros burst";
+    if (job === "emergency") return "sert de bouton de secours";
+    if (job === "control") return "contrôle aussi le groupe";
+    return "";
+  }
+  const SPELL_JOB = {
+    "frost-cone": "control", shockwave: "control", "ice-stiletto": "control", "lightning-bolt": "control",
+    stormball: "control", "winter-nail": "control", "cursed-bell": "control", "iron-cross": "control",
+    "ice-sphere": "emergency", cornucopia: "emergency",
+    fireballs: "burst", firebreath: "burst", "blight-cyst": "burst", stigma: "burst",
+    "burning-stake": "burst", "rotten-fiend": "burst", miasma: "burst", "pyre-skull": "burst", twinshade: "burst",
+  };
+  const STAT_LABEL = {
+    flesh: "Chair", blood: "Sang", mind: "Esprit", witchery: "Sorcellerie", arsenal: "Arsenal", faith: "Foi",
+  };
+  const STAT_PLAN = {
+    survie: ["flesh", "blood", "arsenal"],
+    agressif: ["blood", "arsenal", "flesh"],
+    sorts: ["witchery", "faith", "mind"],
+    elementaire: ["arsenal", "witchery", "blood"],
+    armes: ["arsenal", "blood", "flesh"],
+  };
+
+  function gunDuty(gun) {
+    if (!gun || gun.demonic || gun.slot === "melee") return "";
+    const type = gun.weaponType || "";
+    const stats = gun.stats || {};
+    if (stats.unwieldy === "sniper" || gun.range === "long" || /précision|verrou/.test(type)) return "reach";
+    if (stats.unwieldy === "shotgun" || /pompe/.test(type)) return "burst";
+    if (/mitrailleur|automatique/.test(type) || (stats.rof || 0) >= 6 || (stats.mag || 0) >= 30) return "clear";
+    if ((stats.rof || 0) > 0 && stats.rof <= 1.3 && (stats.damage || 0) >= 65) return "reach";
+    return "flex";
+  }
+
+  function spellJob(spell) {
+    if (!spell) return "";
+    return SPELL_JOB[spell.id] || "";
+  }
+
+  function spellMark(spell) {
+    const job = spellJob(spell);
+    if (!job) return "";
+    const got = spell.applies || {};
+    const element = got.freeze ? "water" : got.burn ? "fire" : got.decay ? "earth" : got.shock ? "air" : "plain";
+    return `${job}:${element}`;
+  }
+
+  function appliesAilment(entry) {
+    const got = entry && entry.applies;
+    return !!(got && (got.burn || got.decay || got.freeze || got.shock));
+  }
+
+  function kitIdentity(loadout, style) {
+    if (style === "survie") return "survie";
+    if (style === "corps") return "agressif";
+    const guns = [loadout.primary, loadout.secondary].filter(Boolean);
+    const spells = [loadout.light, loadout.heavy, loadout.relic].filter(Boolean);
+    const gunApplies = guns.some(appliesAilment);
+    const spellApplies = spells.some(appliesAilment);
+    if (gunApplies && spellApplies) return "elementaire";
+    if (spellApplies) return "sorts";
+    if (style === "tir" || style === "distance") return "armes";
+    const duties = guns.map(gunDuty);
+    if (duties.includes("burst") && !duties.includes("reach")) return "agressif";
+    return "armes";
+  }
+
+  function roleAdjustment(loadout) {
+    const primary = gunDuty(loadout.primary);
+    const secondary = gunDuty(loadout.secondary);
+    let score = 0;
+    const notes = [];
+    if (primary && secondary) {
+      if (primary === secondary) {
+        score -= 320;
+        notes.push("Les deux armes font le même travail.");
+      } else {
+        score += 120;
+      }
+      if (loadout.primary.weaponType && loadout.primary.weaponType === loadout.secondary.weaponType) {
+        score -= 80;
+        if (!notes.length) notes.push("Les deux armes sont du même type.");
+      }
+    }
+    const light = spellJob(loadout.light);
+    const heavy = spellJob(loadout.heavy);
+    if (light === "control") score += 40;
+    if (heavy === "burst" || heavy === "emergency") score += 40;
+    const lightMark = spellMark(loadout.light);
+    const heavyMark = spellMark(loadout.heavy);
+    if (light && heavy && lightMark && lightMark === heavyMark) {
+      score -= 90;
+      notes.push("Les deux sorts font le même travail.");
+    }
+    return { score, notes, primary, secondary, light, heavy };
+  }
+
+  function attrFit(identity, attrs) {
+    if (!attrs) return 0;
+    const values = Object.keys(STAT_LABEL).map((key) => ({ key, value: Number(attrs[key] || 0) }));
+    values.sort((a, b) => b.value - a.value);
+    const best = values[0];
+    const second = values[1] ? values[1].value : 0;
+    if (!best || best.value < 20 || best.value - second < 15) return 0;
+    const plan = STAT_PLAN[identity] || STAT_PLAN.armes;
+    if (best.key === plan[0]) return 24;
+    if (best.key === plan[1]) return 12;
+    if (plan.indexOf(best.key) >= 0) return 6;
+    return -12;
+  }
+
+  function roleSentence(ev) {
+    const loadout = ev.loadout || {};
+    const bits = [];
+    if (loadout.primary && DUTY_TEXT[gunDuty(loadout.primary)]) bits.push(`${loadout.primary.name} ${DUTY_TEXT[gunDuty(loadout.primary)]}.`);
+    if (loadout.secondary && DUTY_TEXT[gunDuty(loadout.secondary)]) bits.push(`${loadout.secondary.name} ${DUTY_TEXT[gunDuty(loadout.secondary)]}.`);
+    const lightLine = lightRoleText(loadout.light);
+    const heavyLine = heavyRoleText(loadout.heavy);
+    if (lightLine) bits.push(`${loadout.light.name} ${lightLine}.`);
+    if (heavyLine) bits.push(`${loadout.heavy.name} ${heavyLine}.`);
+    if (loadout.demonic) bits.push(`${loadout.demonic.name} reste pour le boss ou une situation critique.`);
+    const plan = STAT_PLAN[ev.identity] || STAT_PLAN.armes;
+    bits.push(`Stats à privilégier : ${plan.map((id) => STAT_LABEL[id]).join(", puis ")}.`);
+    if (ev.roles && ev.roles.notes && ev.roles.notes.length) bits.push(ev.roles.notes.join(" "));
+    return bits.join(" ");
+  }
+
+  function coverBy(ranked, full, accept, limit) {
+    const picked = [];
+    const seen = new Set();
+    const take = (entry) => {
+      if (!entry || seen.has(entry.id)) return;
+      seen.add(entry.id);
+      picked.push(entry);
+    };
+    for (const wanted of accept) {
+      take(ranked.find(wanted) || full.find(wanted));
+    }
+    for (const entry of ranked) take(entry);
+    return picked.slice(0, limit);
+  }
+
   function chooseBeads(loadout, slotCount, myst, style, gnosis, attrs) {
     const got = applied(loadout, myst);
+    const identity = kitIdentity(loadout, style);
     const hasShotgun = pieces(loadout).some((p) => p.stats && p.stats.unwieldy === "shotgun");
     const hasSniper = pieces(loadout).some((p) => p.stats && p.stats.unwieldy === "sniper");
     const dash = loadout.ring && loadout.ring.applies && loadout.ring.applies.dash;
@@ -575,7 +734,28 @@
     if (hasSniper) want.add("long-range");
     if (dash || slide) want.add("dash-stamina");
     if (style === "distance" || style === "boss") want.add("blessed-aim");
-    if (style === "survie") want.add("healing");
+    if (style === "survie" || identity === "survie") {
+      want.add("healing");
+      want.add("resistance");
+      want.add("health");
+      want.add("stamina");
+    }
+    if (identity === "agressif") {
+      want.add("stamina");
+      want.add("dash-stamina");
+      want.add("dash-range");
+    }
+    if (identity === "armes" || identity === "elementaire") {
+      want.add("ammo-reserves");
+      want.add("weapon-range");
+      want.add("quickdraw");
+    }
+    if (identity === "sorts" || identity === "elementaire") {
+      want.add("spell-recharge");
+      want.add("light-charge");
+      want.add("crystal-spell");
+      want.add("elemental-duration");
+    }
     if (loadout.light && loadout.light.spellType === "light") want.add("light-charge");
     const candidates = DATA.beads.filter((b) => b.gnosis <= gnosis && want.has(b.id) && attrsCover(beadGates(b), attrs));
     const utilityOf = (bead) => {
@@ -587,6 +767,10 @@
       if (bead.tags.survival && style === "survie") score += 40;
       if (bead.tags.crit && style === "distance") score += 20;
       if (bead.tags.spells && (loadout.light || loadout.heavy)) score += 15;
+      if (identity === "survie" && (bead.tags.survival || bead.id === "health" || bead.id === "stamina")) score += 28;
+      if (identity === "agressif" && (bead.tags.dash || bead.id === "stamina")) score += 28;
+      if ((identity === "armes" || identity === "elementaire") && (bead.id === "ammo-reserves" || bead.id === "weapon-range" || bead.id === "quickdraw")) score += 22;
+      if ((identity === "sorts" || identity === "elementaire") && (bead.tags.spells || bead.tags.duration)) score += 22;
       if (bead.id === "acute-ailment" && got.freezes.length && !got.decays.length) score -= 50;
       return score;
     };
@@ -786,10 +970,13 @@
     }
     if (style === "distance") score += guns.some((g) => g.range === "long") ? 40 : -15;
     if (style === "corps") score += guns.some((g) => g.range === "close") ? 30 : -10;
+    const roles = roleAdjustment(loadout);
+    const identity = kitIdentity(loadout, style);
+    score += roles.score + attrFit(identity, attrs);
     if (style === "survie") {
-      const snipers = guns.filter((g) => g.stats && g.stats.unwieldy === "sniper").length;
-      score += snipers * 30;
-      if (snipers >= 2) score += 55;
+      const reach = guns.filter((g) => gunDuty(g) === "reach").length;
+      if (reach === 1 && guns.length >= 2) score += 24;
+      if (spellJob(loadout.light) === "control") score += 16;
     }
     if (loadout.melee && guns.some((gun) => gun.id === "psychopomp")) score += 20;
     const have = new Set(math.elements);
@@ -800,7 +987,7 @@
     const reliableBurn = got.burns.some((b) => b.reliable >= 0.8);
     const reliableDecay = got.decays.some((d) => (d.reliable || 1) >= 0.8);
     if (plan.has("fire") && plan.has("earth") && reliableBurn && reliableDecay) score += 45;
-    return { loadout, beads: beadPick.beads, math, score, plan: [...plan], safety };
+    return { loadout, beads: beadPick.beads, math, score, plan: [...plan], safety, roles, identity };
   }
 
   function elementApplied(el, got) {
@@ -895,7 +1082,16 @@
 
   function searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs) {
     const src = pool(gnosis);
-    let weapons = preferApplied(src.weapons, plan, myst, style, style === "survie" ? 10 : 8);
+    let weapons = coverBy(
+      preferApplied(src.weapons, plan, myst, style, style === "survie" ? 10 : 8),
+      src.weapons,
+      [
+        (gun) => gunDuty(gun) === "clear",
+        (gun) => gunDuty(gun) === "reach",
+        (gun) => gunDuty(gun) === "burst",
+      ],
+      style === "survie" ? 10 : 8,
+    );
     if (style === "survie") {
       for (const id of ["hailstorm", "oracle", "frostbite"]) {
         const gun = src.weapons.find((w) => w.id === id);
@@ -906,8 +1102,18 @@
       const forced = src.weapons.find((w) => w.id === weaponId) || DATA.demonic.find((w) => w.id === weaponId && w.gnosis <= gnosis);
       if (forced && forced.slot === "weapon" && !weapons.some((w) => w.id === forced.id)) weapons.unshift(forced);
     }
-    const lights = preferApplied(src.lights, plan, myst, style, 4);
-    const heavies = preferApplied(src.heavies, plan, myst, style, 4);
+    const lights = coverBy(
+      preferApplied(src.lights, plan, myst, style, 4),
+      src.lights,
+      [(spell) => spellJob(spell) === "control"],
+      4,
+    );
+    const heavies = coverBy(
+      preferApplied(src.heavies, plan, myst, style, 4),
+      src.heavies,
+      [(spell) => spellJob(spell) === "burst", (spell) => spellJob(spell) === "emergency"],
+      4,
+    );
     const relics = preferApplied(src.relics, plan, myst, style, 1);
     const rings = preferApplied(src.rings, plan, myst, style, 2);
     const fetish = pickFetish(src.fetishes, style);
@@ -972,13 +1178,10 @@
 
   function orderGuns(a, b, style) {
     const weight = (g) => {
-      let n = g.range === "long" ? 1 : 0;
-      if (style === "corps") n -= 2;
-      if (style === "distance") n += 3;
-      if (g.applies && g.applies.decay) n += 6;
-      if (g.applies && g.applies.burn) n += 3;
-      if (g.applies && g.applies.shock) n += 2;
-      if (g.applies && g.applies.freeze) n += 2;
+      const duty = gunDuty(g);
+      let n = duty === "clear" ? 40 : duty === "flex" ? 28 : duty === "burst" ? 16 : 4;
+      if (style === "corps" && (duty === "burst" || g.range === "close")) n += 18;
+      if ((style === "distance" || style === "survie") && duty === "flex") n += 6;
       return n;
     };
     return weight(a) >= weight(b) ? [a, b] : [b, a];
@@ -1098,6 +1301,7 @@
     } else {
       bits.push("Cet équipement gagne par les dégâts d'arme et le contrôle, sans combo élémentaire chiffré.");
     }
+    if (ev.roles && ev.roles.notes && ev.roles.notes.length) bits.push(ev.roles.notes.join(" "));
     bits.push(`Calcul au Mysterium ${myst}. Perles choisies : ${ev.beads.length ? ev.beads.map((b) => b.name).join(", ") : "aucune"}.`);
     return bits.join(" ");
   }
@@ -1155,6 +1359,10 @@
       {
         title: "Contraintes",
         text: `Gnosis ${gnosis} (${phase.name}), ${rosarySlots(gnosis)} perle${rosarySlots(gnosis) > 1 ? "s" : ""} de rosaire, Mysterium ${myst} supposé. Deux armes standard, une démoniaque, une mêlée, un sort léger, un sort lourd, une relique, un fétiche, un anneau.`,
+      },
+      {
+        title: "Rôles",
+        text: roleSentence(ev.roles ? ev : Object.assign({}, ev, { roles: roleAdjustment(ev.loadout), identity: ev.identity || kitIdentity(ev.loadout, "elementaire") })),
       },
     ];
     steps.push(...ev.math.lines);
@@ -1319,10 +1527,6 @@
   function styleRank(ev, style) {
     const tags = (ev.meta && ev.meta.tags) || [];
     if (tags.includes(style)) return 2;
-    if (style === "survie") {
-      const guns = [ev.loadout.primary, ev.loadout.secondary].filter(Boolean);
-      if (guns.filter((g) => g.stats && g.stats.unwieldy === "sniper").length >= 2) return 2;
-    }
     return 0;
   }
 
@@ -1744,6 +1948,15 @@
       light: null, heavy: item("burning-stake"), relic: null, fetish: null, ring: item("crown-of-fire"),
     }, beads, 3);
     const tick = math.decay && math.decay.row ? math.decay.row.tick * burnMultiplier(0.375, true, "both") * 1.5 : 0;
+    const ordered = orderGuns(item("echo"), item("rotweaver"), "elementaire");
+    const shared = { demonic: item("vulture"), melee: item("fist"), relic: item("kirfane"), fetish: item("henbane"), ring: item("crown-of-fire") };
+    const spells = { light: item("stormball"), heavy: item("burning-stake") };
+    const clash = evaluate(Object.assign({
+      primary: item("judgment"), secondary: item("tribunal"),
+    }, spells, shared), new Set(["fire", "earth"]), 3, 5, "elementaire", 5, null);
+    const fit = evaluate(Object.assign({
+      primary: item("rotweaver"), secondary: item("echo"),
+    }, spells, shared), new Set(["fire", "earth"]), 3, 5, "elementaire", 5, null);
     return {
       lateCount: late.builds.length,
       earlyCount: early.builds.length,
@@ -1756,6 +1969,11 @@
       echoDps: sustainedDps(item("echo")),
       hungerDps: sustainedDps(item("hunger")),
       pairDps: averageDps({ primary: item("echo"), secondary: item("hunger") }),
+      rotPrimary: ordered[0] && ordered[0].id === "rotweaver",
+      echoSecondary: ordered[1] && ordered[1].id === "echo",
+      fitBeatsClash: fit.score > clash.score,
+      fitScore: Math.round(fit.score),
+      clashScore: Math.round(clash.score),
     };
   }
 
