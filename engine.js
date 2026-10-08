@@ -557,7 +557,29 @@
     } else if (takenBurnFreeze) packageScore = takenBurnFreeze - shot;
     else if (takenBurn) packageScore = takenBurn - shot;
     else if (freeze) packageScore = shot * 0.5;
-    return { package: packageScore, mode, decay, freeze };
+    return {
+      package: packageScore, mode, decay, freeze, shock, burn,
+      comboTotal, tickShockTotal, tickShockSecondTotal,
+    };
+  }
+
+  function elementValue(loadout, rough) {
+    const shock = rough && rough.shock || null;
+    const decay = rough && rough.decay || null;
+    const stay = shock && shock.reliable != null ? shock.reliable : 1;
+    if (decay && decay.row) {
+      const up = uptimeOf(decay.decay);
+      const combo = rough.comboTotal || 0;
+      const sparks = (rough.tickShockTotal || 0) + (rough.tickShockSecondTotal || 0);
+      return { value: combo * up + sparks * up * stay, up, stay, shock, sparks };
+    }
+    return {
+      value: ((rough && rough.package) || 0) * (shock ? stay : 1),
+      up: 1,
+      stay: shock ? stay : 1,
+      shock,
+      sparks: 0,
+    };
   }
 
   const DUTY_TEXT = {
@@ -596,7 +618,14 @@
     agressif: ["blood", "arsenal", "flesh"],
     sorts: ["witchery", "faith", "mind"],
     elementaire: ["arsenal", "witchery", "blood"],
+    hybride: ["arsenal", "blood", "flesh"],
     armes: ["arsenal", "blood", "flesh"],
+  };
+  const IDENTITY_TEXT = {
+    elementaire: "Rôle du build : élémentaire, les pièces servent les mêmes malus.",
+    hybride: "Rôle du build : hybride, la principale nettoie et la secondaire gère les élites.",
+    survie: "Rôle du build : survie, on contrôle avant le contact.",
+    agressif: "Rôle du build : agressif, on colle et on burst.",
   };
 
   function gunDuty(gun) {
@@ -628,49 +657,186 @@
     return !!(got && (got.burn || got.decay || got.freeze || got.shock));
   }
 
-  function kitIdentity(loadout, style) {
-    if (style === "survie") return "survie";
+  function buildIdentity(loadout, style, plan) {
+    if (style === "survie" || style === "distance") return "survie";
     if (style === "corps") return "agressif";
-    const guns = [loadout.primary, loadout.secondary].filter(Boolean);
-    const spells = [loadout.light, loadout.heavy, loadout.relic].filter(Boolean);
-    const gunApplies = guns.some(appliesAilment);
-    const spellApplies = spells.some(appliesAilment);
-    if (gunApplies && spellApplies) return "elementaire";
-    if (spellApplies) return "sorts";
-    if (style === "tir" || style === "distance") return "armes";
-    const duties = guns.map(gunDuty);
-    if (duties.includes("burst") && !duties.includes("reach")) return "agressif";
-    return "armes";
+    if (style === "tir" || style === "boss") return "hybride";
+    const gunsApply = [loadout.primary, loadout.secondary].some(appliesAilment);
+    const spellsApply = [loadout.light, loadout.heavy, loadout.relic, loadout.ring].some(appliesAilment);
+    const planned = plan && plan.size >= 2;
+    if (style === "populaire" || style === "notable") {
+      if (planned && (gunsApply || spellsApply)) return "elementaire";
+      const reach = [gunDuty(loadout.primary), gunDuty(loadout.secondary)].filter((duty) => duty === "reach").length;
+      const control = spellJob(loadout.light) === "control" || spellJob(loadout.heavy) === "control" || spellJob(loadout.heavy) === "emergency";
+      if (reach && control) return "survie";
+      if (loadout.primary && (loadout.primary.range === "close" || gunDuty(loadout.primary) === "burst")) return "agressif";
+      return "hybride";
+    }
+    const elementalStyle = style === "elementaire" || style === "foules";
+    if (planned || (elementalStyle && (gunsApply || spellsApply)) || (gunsApply && spellsApply)) return "elementaire";
+    return "hybride";
   }
 
-  function roleAdjustment(loadout) {
-    const primary = gunDuty(loadout.primary);
-    const secondary = gunDuty(loadout.secondary);
-    let score = 0;
-    const notes = [];
-    if (primary && secondary) {
-      if (primary === secondary) {
-        score -= 320;
-        notes.push("Les deux armes font le même travail.");
-      } else {
-        score += 120;
+  function elementCarrier(entry, el, myst) {
+    if (!entry) return 0;
+    if (el === "fire") {
+      const burn = burnOf(entry, myst);
+      return burn ? (burn.reliable == null ? 1 : burn.reliable) : 0;
+    }
+    if (el === "earth") {
+      const decay = decayOf(entry, myst);
+      return decay ? (decay.reliable || 1) * uptimeOf(decay) : 0;
+    }
+    if (el === "air") {
+      const shock = shockOf(entry, myst);
+      return shock && !shock.qualitative ? shock.reliable : 0;
+    }
+    if (el === "water") {
+      const freeze = freezeOf(entry, myst);
+      return freeze ? freeze.reliable : 0;
+    }
+    return 0;
+  }
+
+  function elementFit(loadout, plan, myst, identity) {
+    if (!plan || !plan.size) return { factor: 1, notes: [] };
+    const keys = ["primary", "secondary", "light", "heavy", "relic", "ring"];
+    let served = 0;
+    const groups = new Set();
+    for (const el of plan) {
+      let best = 0;
+      let group = "";
+      for (const key of keys) {
+        const value = elementCarrier(loadout[key], el, myst);
+        if (value > best) {
+          best = value;
+          group = key === "primary" || key === "secondary" ? "gun" : "spell";
+        }
       }
-      if (loadout.primary.weaponType && loadout.primary.weaponType === loadout.secondary.weaponType) {
-        score -= 80;
-        if (!notes.length) notes.push("Les deux armes sont du même type.");
+      if (best >= 0.7) {
+        served += 1;
+        groups.add(group);
+      } else if (best >= 0.35) served += 0.45;
+    }
+    const ratio = served / plan.size;
+    let factor = 0.74 + ratio * 0.26;
+    const notes = [];
+    if (identity === "elementaire" && plan.size >= 2) {
+      if (ratio >= 0.99 && groups.size >= 2) factor += 0.14;
+      else if (ratio >= 0.99) factor += 0.05;
+      const offGun = [];
+      for (const el of plan) {
+        const onGun = Math.max(
+          elementCarrier(loadout.primary, el, myst),
+          elementCarrier(loadout.secondary, el, myst),
+        );
+        if (onGun < 0.55) offGun.push(DATA.EL[el] ? DATA.EL[el].name : el);
+      }
+      if (offGun.length && offGun.length < plan.size) {
+        const pronoun = offGun.length > 1 ? "ces malus" : "ce malus";
+        notes.push(`${offGun.join(" et ")} ne ${offGun.length > 1 ? "passent" : "passe"} pas par une arme. Le sort qui pose ${pronoun} doit rester au centre du combat.`);
+      } else if (offGun.length === plan.size) {
+        notes.push("Aucun malus du plan n'est sur une arme. Le build vit le temps des sorts.");
+        factor *= 0.9;
       }
     }
+    if (identity === "survie") {
+      const freeze = Math.max(
+        elementCarrier(loadout.light, "water", myst),
+        elementCarrier(loadout.heavy, "water", myst),
+        elementCarrier(loadout.primary, "water", myst),
+      );
+      if (freeze >= 0.7) factor += 0.08;
+      factor = Math.min(factor, 1.06);
+    }
+    return { factor, notes };
+  }
+
+  function offPlanFit(loadout, plan, myst) {
+    const notes = [];
+    let factor = 1;
+    if (!plan || plan.size < 2) return { factor, notes };
+    for (const key of ["primary", "secondary", "light", "heavy"]) {
+      const entry = loadout[key];
+      if (!entry) continue;
+      const got = [];
+      if (burnOf(entry, myst)) got.push("fire");
+      if (decayOf(entry, myst)) got.push("earth");
+      if (shockOf(entry, myst) && !shockOf(entry, myst).qualitative) got.push("air");
+      if (freezeOf(entry, myst)) got.push("water");
+      const outside = got.filter((el) => !plan.has(el));
+      if (!outside.length || got.some((el) => plan.has(el))) continue;
+      factor *= 0.92;
+      const names = outside.map((el) => DATA.EL[el] ? DATA.EL[el].name : el);
+      notes.push(`${entry.name} pose ${names.join(" et ")}, hors du plan.`);
+    }
+    return { factor, notes };
+  }
+
+  function weaponFit(loadout, identity) {
+    const primary = gunDuty(loadout.primary);
+    const secondary = gunDuty(loadout.secondary);
+    const notes = [];
+    let factor = 1;
+    if (primary && secondary) {
+      if (primary === secondary) {
+        factor -= 0.24;
+        notes.push("Les deux armes font le même travail.");
+      } else {
+        factor += identity === "hybride" || identity === "elementaire" ? 0.08 : 0.05;
+        if ((identity === "hybride" || identity === "elementaire") && (primary === "clear" || primary === "flex") && (secondary === "reach" || secondary === "burst")) {
+          factor += 0.06;
+        }
+      }
+      if (loadout.primary.weaponType && loadout.primary.weaponType === loadout.secondary.weaponType) {
+        factor -= 0.08;
+        if (!notes.length) notes.push("Les deux armes sont du même type.");
+      }
+    } else factor -= 0.08;
+    if (identity === "agressif") {
+      if (primary === "burst" || primary === "clear" || (loadout.primary && loadout.primary.range === "close")) factor += 0.08;
+      else factor -= 0.06;
+    }
+    if (identity === "survie") {
+      const reach = [primary, secondary].filter((duty) => duty === "reach").length;
+      if (reach === 1) factor += 0.08;
+    }
+    return { factor, notes, primary, secondary };
+  }
+
+  function spellFit(loadout, identity) {
     const light = spellJob(loadout.light);
     const heavy = spellJob(loadout.heavy);
-    if (light === "control") score += 40;
-    if (heavy === "burst" || heavy === "emergency") score += 40;
+    const notes = [];
+    let factor = 1;
+    if (light === "control") factor += identity === "survie" ? 0.08 : 0.05;
+    if (heavy === "burst" || heavy === "emergency") factor += identity === "agressif" || identity === "elementaire" ? 0.06 : 0.04;
+    if (identity === "survie" && (heavy === "emergency" || heavy === "control")) factor += 0.05;
     const lightMark = spellMark(loadout.light);
     const heavyMark = spellMark(loadout.heavy);
     if (light && heavy && lightMark && lightMark === heavyMark) {
-      score -= 90;
+      factor -= 0.1;
       notes.push("Les deux sorts font le même travail.");
     }
-    return { score, notes, primary, secondary, light, heavy };
+    return { factor, notes, light, heavy };
+  }
+
+  function planFit(loadout, plan, myst, style) {
+    const identity = buildIdentity(loadout, style, plan);
+    const guns = weaponFit(loadout, identity);
+    const spells = spellFit(loadout, identity);
+    const elements = elementFit(loadout, plan, myst, identity);
+    const pulled = offPlanFit(loadout, plan, myst);
+    const factor = Math.max(0.5, Math.min(1.34, guns.factor * spells.factor * elements.factor * pulled.factor));
+    return {
+      factor,
+      notes: guns.notes.concat(spells.notes, elements.notes, pulled.notes),
+      identity,
+      primary: guns.primary,
+      secondary: guns.secondary,
+      light: spells.light,
+      heavy: spells.heavy,
+    };
   }
 
   function attrFit(identity, attrs) {
@@ -690,6 +856,11 @@
   function roleSentence(ev) {
     const loadout = ev.loadout || {};
     const bits = [];
+    if (IDENTITY_TEXT[ev.identity]) bits.push(IDENTITY_TEXT[ev.identity]);
+    if (ev.identity === "survie") bits.push("Le score suit ce rôle : le contrôle et la tenue pèsent plus que le total de la table.");
+    if (ev.identity === "agressif") bits.push("Le score suit ce rôle : le contact et le burst pèsent plus que le total de la table.");
+    if (ev.identity === "hybride") bits.push("Le score suit ce rôle : les deux armes pèsent plus que le total de la table.");
+    if (ev.plan && ev.plan.length) bits.push(`Éléments du plan : ${ev.plan.map((id) => DATA.EL[id] ? DATA.EL[id].name : id).join(" et ")}.`);
     if (loadout.primary && DUTY_TEXT[gunDuty(loadout.primary)]) bits.push(`${loadout.primary.name} ${DUTY_TEXT[gunDuty(loadout.primary)]}.`);
     if (loadout.secondary && DUTY_TEXT[gunDuty(loadout.secondary)]) bits.push(`${loadout.secondary.name} ${DUTY_TEXT[gunDuty(loadout.secondary)]}.`);
     const lightLine = lightRoleText(loadout.light);
@@ -718,9 +889,9 @@
     return picked.slice(0, limit);
   }
 
-  function chooseBeads(loadout, slotCount, myst, style, gnosis, attrs) {
+  function chooseBeads(loadout, slotCount, myst, style, gnosis, attrs, plan) {
     const got = applied(loadout, myst);
-    const identity = kitIdentity(loadout, style);
+    const identity = buildIdentity(loadout, style, plan || null);
     const hasShotgun = pieces(loadout).some((p) => p.stats && p.stats.unwieldy === "shotgun");
     const hasSniper = pieces(loadout).some((p) => p.stats && p.stats.unwieldy === "sniper");
     const dash = loadout.ring && loadout.ring.applies && loadout.ring.applies.dash;
@@ -745,7 +916,7 @@
       want.add("dash-stamina");
       want.add("dash-range");
     }
-    if (identity === "armes" || identity === "elementaire") {
+    if (identity === "hybride" || identity === "armes" || identity === "elementaire") {
       want.add("ammo-reserves");
       want.add("weapon-range");
       want.add("quickdraw");
@@ -769,15 +940,14 @@
       if (bead.tags.spells && (loadout.light || loadout.heavy)) score += 15;
       if (identity === "survie" && (bead.tags.survival || bead.id === "health" || bead.id === "stamina")) score += 28;
       if (identity === "agressif" && (bead.tags.dash || bead.id === "stamina")) score += 28;
-      if ((identity === "armes" || identity === "elementaire") && (bead.id === "ammo-reserves" || bead.id === "weapon-range" || bead.id === "quickdraw")) score += 22;
+      if ((identity === "hybride" || identity === "armes" || identity === "elementaire") && (bead.id === "ammo-reserves" || bead.id === "weapon-range" || bead.id === "quickdraw")) score += 22;
       if ((identity === "sorts" || identity === "elementaire") && (bead.tags.spells || bead.tags.duration)) score += 22;
       if (bead.id === "acute-ailment" && got.freezes.length && !got.decays.length) score -= 50;
       return score;
     };
     const scoreSet = (set) => {
       const rough = packageOnly(loadout, set, myst);
-      const timed = !!(rough.decay && rough.decay.row);
-      let score = (rough.package || 0) * (timed ? uptimeOf(rough.decay && rough.decay.decay) : 1);
+      let score = elementValue(loadout, rough).value;
       for (const bead of set) score += utilityOf(bead);
       if (rough.freeze && rough.mode === "acute") score -= 30;
       return score;
@@ -949,53 +1119,39 @@
     return applied.concat(rest).slice(0, limit);
   }
 
-  function evaluate(loadout, plan, myst, gnosis, style, slotCount, attrs) {
-    const beadPick = chooseBeads(loadout, slotCount, myst, style, gnosis, attrs);
-    const math = beadPick.math;
-    const got = applied(loadout, myst);
-    let score = beadPick.score + firepower(loadout) + opinion(loadout);
-    const guns = [loadout.primary, loadout.secondary].filter(Boolean);
-    const ranges = new Set(guns.map((g) => g.range));
-    if (ranges.has("close") && (ranges.has("medium") || ranges.has("long"))) score += 30;
-    if (guns.length < 2) score -= 25;
-    const safety = (loadout.fetish && loadout.fetish.safety || 0) + (loadout.ring && loadout.ring.id === "shadowmist-ring" ? 3 : 0);
-    score += safety * (style === "survie" ? 40 : 12);
-    if (style === "boss") {
-      score += guns.some((g) => g.range === "long") ? 35 : 0;
-      score += math.decay && math.decay.row ? math.decay.row.tick * 4 : 0;
-    }
-    if (style === "foules") {
-      score += (math.burn && math.burn.aoe) ? 40 : 0;
-      score += loadout.light && loadout.light.id === "stormball" ? 20 : 0;
-    }
-    if (style === "distance") score += guns.some((g) => g.range === "long") ? 40 : -15;
-    if (style === "corps") score += guns.some((g) => g.range === "close") ? 30 : -10;
-    const roles = roleAdjustment(loadout);
-    const identity = kitIdentity(loadout, style);
-    score += roles.score + attrFit(identity, attrs);
-    if (style === "survie") {
-      const reach = guns.filter((g) => gunDuty(g) === "reach").length;
-      if (reach === 1 && guns.length >= 2) score += 24;
-      if (spellJob(loadout.light) === "control") score += 16;
-    }
-    if (loadout.melee && guns.some((gun) => gun.id === "psychopomp")) score += 20;
-    const have = new Set(math.elements);
-    let covered = 0;
-    for (const el of plan) if (have.has(el) || elementApplied(el, got)) covered++;
-    score += covered * 20;
-    if (have.size > plan.size + 1) score -= (have.size - plan.size) * 8;
-    const reliableBurn = got.burns.some((b) => b.reliable >= 0.8);
-    const reliableDecay = got.decays.some((d) => (d.reliable || 1) >= 0.8);
-    if (plan.has("fire") && plan.has("earth") && reliableBurn && reliableDecay) score += 45;
-    return { loadout, beads: beadPick.beads, math, score, plan: [...plan], safety, roles, identity };
+  function mixPower(identity, element, utility, fire, opinion) {
+    const beads = element + utility;
+    if (identity === "survie") return fire * 0.45 + beads * 0.12 + opinion;
+    if (identity === "agressif") return fire * 1.2 + beads * 0.2 + opinion;
+    if (identity === "hybride") return fire * 0.9 + beads * 0.4 + opinion;
+    return beads + fire + opinion;
   }
 
-  function elementApplied(el, got) {
-    if (el === "fire") return got.burns.length > 0;
-    if (el === "earth") return got.decays.length > 0;
-    if (el === "air") return got.shocks.length > 0;
-    if (el === "water") return got.freezes.length > 0;
-    return false;
+  function composeScore(loadout, roles, attrs, parts) {
+    const guns = [loadout.primary, loadout.secondary].filter(Boolean);
+    const safety = (loadout.fetish && loadout.fetish.safety || 0) + (loadout.ring && loadout.ring.id === "shadowmist-ring" ? 3 : 0);
+    const mixed = mixPower(roles.identity, parts.element, parts.utility, parts.fire, parts.opinion);
+    let score = mixed * roles.factor;
+    score += safety * (roles.identity === "survie" ? 28 : 6);
+    score += attrFit(roles.identity, attrs);
+    if (loadout.melee && guns.some((gun) => gun.id === "psychopomp")) score += 12;
+    return { score, safety };
+  }
+
+  function evaluate(loadout, plan, myst, gnosis, style, slotCount, attrs) {
+    const beadPick = chooseBeads(loadout, slotCount, myst, style, gnosis, attrs, plan);
+    const roles = planFit(loadout, plan, myst, style);
+    const delivery = elementValue(loadout, beadPick.math);
+    const judged = composeScore(loadout, roles, attrs, {
+      element: delivery.value,
+      utility: beadPick.score - delivery.value,
+      fire: firepower(loadout),
+      opinion: opinion(loadout),
+    });
+    return {
+      loadout, beads: beadPick.beads, math: beadPick.math, score: judged.score,
+      plan: [...plan], safety: judged.safety, roles, identity: roles.identity, delivery,
+    };
   }
 
   function plansFor(elements) {
@@ -1362,7 +1518,10 @@
       },
       {
         title: "Rôles",
-        text: roleSentence(ev.roles ? ev : Object.assign({}, ev, { roles: roleAdjustment(ev.loadout), identity: ev.identity || kitIdentity(ev.loadout, "elementaire") })),
+        text: roleSentence(Object.assign({}, ev, {
+          identity: ev.identity || (ev.roles && ev.roles.identity),
+          roles: ev.roles || planFit(ev.loadout, new Set(ev.plan || []), myst, "elementaire"),
+        })),
       },
     ];
     steps.push(...ev.math.lines);
@@ -1382,6 +1541,13 @@
           text: `Le total publié reste celui du wiki. Le classement le pondère par ${fmt(up, 2)} : ${ev.math.decay.decay.item.name} demande de maintenir un sort, un essaim ou une zone, là où une rafale continue couvre le combat plus simplement.`,
         });
       }
+    }
+    const delivery = ev.delivery || elementValue(ev.loadout || {}, ev.math);
+    if (delivery.shock && delivery.stay < 0.99 && delivery.sparks > 0) {
+      steps.push({
+        title: "Choc retenu",
+        text: `${delivery.shock.item.name} ne pose le choc qu'une partie du temps (${fmt(delivery.stay, 2)}). Les éclairs des ticks sont retenus à cette part. Le total publié du wiki reste affiché tel quel.`,
+      });
     }
     if (extra && extra.length) steps.push({ title: "Substitutions", text: extra.join(" ") });
     const horizon = horizonText(ev, gnosis, myst);
@@ -1910,12 +2076,24 @@
     for (const key of Object.keys(loadout)) loadout[key] = item(query.slots && query.slots[key]) || null;
     const chosen = (query.beads || []).map(item).filter(Boolean);
     let ev;
-    if (query.ownBeads) {
-      const math = computeMath(loadout, chosen, myst);
-      ev = { loadout, beads: chosen, math, score: math.package || math.comboTotal || 0, plan: math.elements, safety: 0 };
-    } else if (chosen.length) {
-      const math = computeMath(loadout, chosen, myst);
-      ev = { loadout, beads: chosen, math, score: math.package || math.comboTotal || 0, plan: math.elements, safety: 0 };
+    const judgedFrom = (math) => {
+      const plan = new Set(math.elements.length ? math.elements : ["fire"]);
+      const style = query.style || "elementaire";
+      const roles = planFit(loadout, plan, myst, style);
+      const delivery = elementValue(loadout, math);
+      const judged = composeScore(loadout, roles, query.attrs || null, {
+        element: delivery.value,
+        utility: 0,
+        fire: firepower(loadout),
+        opinion: opinion(loadout),
+      });
+      return {
+        loadout, beads: chosen, math, score: judged.score, plan: [...plan],
+        safety: judged.safety, roles, identity: roles.identity, delivery,
+      };
+    };
+    if (query.ownBeads || chosen.length) {
+      ev = judgedFrom(computeMath(loadout, chosen, myst));
     } else {
       const presentEls = activeElements(loadout, myst);
       const plan = presentEls.size ? presentEls : new Set(["fire", "earth"]);

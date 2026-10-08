@@ -2002,7 +2002,7 @@
       "Les totaux de ticks de la page Éléments ont été mesurés avec +50 % de durée. Le moteur n'applique pas une seconde fois la perle Elemental Duration.",
       "Deux objets du même élément ne rendent pas cet arcane plus probable. Un seul représentant suffit.",
       "Le score pondère le total publié par la facilité à maintenir la source. Une rafale de Rotweaver compte pour sa pleine valeur. Un encensoir ou un familier compte moins, tout en gardant leur total de table dans la preuve.",
-      "Chaque pièce a un travail. L'arme principale nettoie les ennemis normaux, la secondaire gère les élites ou la longue portée, le sort léger contrôle, le sort lourd est un burst ou un secours, l'arme démoniaque sert le boss. Deux armes qui font le même travail, ou deux armes du même type, baissent le score. Les stats suivent le plan : Arsenal pour les armes, Sang pour le jeu agressif, Chair puis Sang pour la survie, Sorcellerie pour les sorts.",
+      "Le score suit le rôle du build. En élémentaire, il part du combo publié : putréfaction pondérée par la tenue de sa source, éclairs des ticks retenus seulement pour la part réelle du choc, puis multiplié par la cohérence. En hybride, les deux armes pèsent plus que la table. En survie, le contrôle et la tenue pèsent plus. En agressif, le contact et le burst pèsent plus. Deux armes qui font le même travail, deux sorts qui posent le même malus de la même façon, ou une pièce qui emmène un malus hors du plan, baissent ce multiplicateur.",
       "Les builds cités viennent de r/Witchfire, des vidéos et des fiches wiki. S'il manque une pièce, le moteur la remplace par la meilleure pièce déjà débloquée du même rôle et l'écrit dans la preuve. La transcendance du filtre retire les perles dont le seuil n'est pas atteint.",
       "Une pièce sans malus chiffré sort du classement élémentaire même si elle gagne le combat : Oracle, Psychopomp, Cricket, Angelus, Frostbite, Falling Star, Shockwave, Cursed Bell, Cornucopia, Ring of Wings, Hangfire. Quand un build cité les emporte, il apparaît dans le style Notable. Martyr n'a pas d'élément publié : il n'entre pas dans ce classement.",
     ];
@@ -2092,7 +2092,7 @@
       "L'arme principale nettoie les ennemis normaux. La secondaire gère les élites ou la longue portée. Un fusil à pompe peut tenir ce second rôle au contact. Deux armes qui font le même travail baissent le score.",
       "Le sort léger contrôle : gel, ralentissement, interruption. Le sort lourd est un gros burst ou un bouton de secours. L'arme démoniaque attend le boss.",
       "Les stats suivent le plan. Un build d'armes privilégie Arsenal. Un jeu mobile ou agressif monte Sang. La survie passe par Chair, puis Sang, puis Arsenal. Un build de sorts monte Sorcellerie.",
-      "Chaque pièce doit servir le même objectif. Rotweaver pose la pourriture, Echo et Burning Stake le feu, Stormball le choc : la pourriture multipliée par le feu reste le plan, et les rôles ne se répètent pas.",
+      "Chaque pièce doit servir le même objectif. Rotweaver pose la pourriture, Echo et Burning Stake le feu, Stormball le choc : la pourriture multipliée par le feu reste le plan, et les rôles ne se répètent pas. Un choc peu fiable n'entre dans le score que pour sa part réelle. Le total publié du wiki reste affiché à côté.",
     ]));
 
     root.appendChild(guideBlock("Perles et arcanes", [
