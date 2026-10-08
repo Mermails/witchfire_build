@@ -1236,7 +1236,13 @@
     return list[0];
   }
 
-  function searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs) {
+  function keepFor(limit) {
+    if (limit === "all") return { perGun: Infinity, perDecay: Infinity, perPlan: Infinity, decayUses: Infinity, generated: Infinity };
+    if (limit === "wide") return { perGun: 8, perDecay: 12, perPlan: 48, decayUses: 12, generated: 120 };
+    return { perGun: 2, perDecay: 3, perPlan: 12, decayUses: 4, generated: 36 };
+  }
+
+  function searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs, keep) {
     const src = pool(gnosis);
     let weapons = coverBy(
       preferApplied(src.weapons, plan, myst, style, style === "survie" ? 10 : 8),
@@ -1316,18 +1322,19 @@
     const seen = new Set();
     const perGun = {};
     const perDecay = {};
+    const limits = keep || keepFor("selection");
     for (const ev of found) {
       const core = coreOf(ev);
       if (seen.has(core)) continue;
       const gun = ev.loadout.primary ? ev.loadout.primary.id : "-";
       const decay = ev.math && ev.math.decay ? ev.math.decay.decay.item.id : "-";
-      if ((perGun[gun] || 0) >= 2) continue;
-      if ((perDecay[decay] || 0) >= 3) continue;
+      if ((perGun[gun] || 0) >= limits.perGun) continue;
+      if ((perDecay[decay] || 0) >= limits.perDecay) continue;
       seen.add(core);
       perGun[gun] = (perGun[gun] || 0) + 1;
       perDecay[decay] = (perDecay[decay] || 0) + 1;
       diverse.push(ev);
-      if (diverse.length >= 12) break;
+      if (diverse.length >= limits.perPlan) break;
     }
     return diverse;
   }
@@ -1703,9 +1710,10 @@
     const lockedSeen = new Set();
     let hiddenHints = 0;
     let sample = null;
+    const citedOnly = query.buildLimit !== "wide" && query.buildLimit !== "all";
     const passes = [["elementaire", false]];
     for (const style of PLAY_STYLES) {
-      if (style !== "elementaire") passes.push([style, true]);
+      if (style !== "elementaire") passes.push([style, citedOnly]);
     }
     passes.push(["notable", true]);
     for (const [style, communityOnly] of passes) {
@@ -1741,10 +1749,12 @@
     const slotCount = rosarySlots(gnosis);
     const attrs = query.attrs || null;
     const plans = plansFor(elements);
+    const keep = keepFor(query.buildLimit);
+    const citedOnly = style === "notable" || style === "populaire";
     const bag = [];
-    if (style !== "notable" && style !== "populaire" && !query.communityOnly) {
+    if (!(citedOnly && keep.generated === 36) && !query.communityOnly) {
       for (const plan of plans) {
-        bag.push(...searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs));
+        bag.push(...searchPlan(plan, gnosis, myst, style, slotCount, weaponId, attrs, keep));
       }
     }
     const hintMeta = (pinned, extra) => {
@@ -1808,14 +1818,14 @@
       const faithful = ev.meta && ev.meta.community && !(ev.meta.subs && ev.meta.subs.length);
       if (used.has(key) || cores.has(core)) return;
       const cited = !!(ev.meta && ev.meta.community);
-      if (!faithful && !cited && decayUses[decayId] >= 4) return;
+      if (!faithful && !cited && decayUses[decayId] >= keep.decayUses) return;
       if (weaponId && !pieces(ev.loadout).some((p) => p && p.id === weaponId)) return;
       used.add(key);
       cores.add(core);
       if (!cited) decayUses[decayId] = (decayUses[decayId] || 0) + 1;
       cards.push(toCard(ev, gnosis, myst, ev.meta));
     };
-    const generatedCap = style === "notable" || style === "populaire" ? 0 : 36;
+    const generatedCap = citedOnly && keep.generated === 36 ? 0 : keep.generated;
     for (const ev of bag.filter((entry) => entry.meta && entry.meta.community)) take(ev);
     const byScore = bag.slice().sort((a, b) => b.score - a.score);
     let generated = 0;

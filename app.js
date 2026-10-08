@@ -8,6 +8,7 @@
     weapon: "",
     sort: "score",
     scoreCut: "all",
+    buildLimit: "selection",
     attrs: { flesh: 100, blood: 100, mind: 100, witchery: 100, arsenal: 100, faith: 100 },
     onlyCovered: false,
     showLocked: false,
@@ -60,6 +61,7 @@
       attrs: state.attrs,
       onlyCovered: state.onlyCovered,
       showLocked: state.showLocked,
+      buildLimit: state.buildLimit,
     });
     const ms = Math.round(performance.now() - started);
     appliedQuery = engineQueryKey();
@@ -765,6 +767,11 @@
       rememberFilters();
       renderBuilds();
     });
+    $("build-limit").addEventListener("change", () => {
+      state.buildLimit = $("build-limit").value;
+      rememberFilters();
+      markEnginePending();
+    });
     $("locked").addEventListener("change", () => {
       state.showLocked = $("locked").checked;
       stageFilters();
@@ -827,6 +834,7 @@
     const styles = ["populaire", "toutes", "elementaire", "foules", "boss", "distance", "corps", "survie", "tir", "notable"];
     const sorts = ["score", "combo", "dps", "name"];
     const scoreCuts = ["all", "top5", "top8", "half", "near"];
+    const buildLimits = ["selection", "wide", "all"];
     const mysteria = ["auto", "1", "2", "3"];
     const gnosis = Number(raw.gnosis);
     const attrs = { flesh: 100, blood: 100, mind: 100, witchery: 100, arsenal: 100, faith: 100 };
@@ -842,6 +850,7 @@
       weapon: typeof raw.weapon === "string" ? raw.weapon : "",
       sort: sorts.includes(raw.sort) ? raw.sort : "score",
       scoreCut: scoreCuts.includes(raw.scoreCut) ? raw.scoreCut : "all",
+      buildLimit: buildLimits.includes(raw.buildLimit) ? raw.buildLimit : "selection",
       attrs,
       onlyCovered: !!raw.onlyCovered,
       showLocked: !!raw.showLocked,
@@ -868,6 +877,7 @@
     state.weapon = filters.weapon;
     state.sort = filters.sort;
     state.scoreCut = filters.scoreCut;
+    state.buildLimit = filters.buildLimit;
     state.attrs = Object.assign({}, filters.attrs);
     state.onlyCovered = filters.onlyCovered;
     state.showLocked = filters.showLocked;
@@ -883,6 +893,7 @@
       weapon: state.weapon,
       sort: state.sort,
       scoreCut: state.scoreCut,
+      buildLimit: state.buildLimit,
       attrs: Object.assign({}, state.attrs),
       onlyCovered: state.onlyCovered,
       showLocked: state.showLocked,
@@ -903,6 +914,7 @@
       attrs,
       onlyCovered: !!state.onlyCovered,
       showLocked: !!state.showLocked,
+      buildLimit: state.buildLimit || "selection",
     });
   }
 
@@ -946,6 +958,7 @@
     $("style").value = state.style;
     $("sort").value = state.sort;
     $("score-cut").value = state.scoreCut;
+    $("build-limit").value = state.buildLimit || "selection";
     const weapon = $("weapon");
     const known = [...weapon.options].some((option) => option.value === state.weapon);
     weapon.value = known ? state.weapon : "";

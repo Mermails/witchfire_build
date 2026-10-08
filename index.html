@@ -125,6 +125,15 @@
         </select>
         <p class="filter-note">Les cinq et les huit meilleurs suivent le score du moteur. La moitié et les proches se mesurent au plus haut score de la liste.</p>
       </fieldset>
+      <fieldset>
+        <legend>Builds générés</legend>
+        <select id="build-limit">
+          <option value="selection" selected>Sélection</option>
+          <option value="wide">Plus de builds</option>
+          <option value="all">Tous ceux calculés</option>
+        </select>
+        <p class="filter-note">La sélection garde 36 builds générés, et seulement les builds cités sur Populaire. Plus de builds monte jusqu'à 120. Tous affiche chaque combinaison calculée pour cette recherche. Relance le moteur après le changement.</p>
+      </fieldset>
       <label class="checkline"><input id="locked" type="checkbox"> Montrer les builds encore verrouillés</label>
       <label class="checkline"><input id="only-fav" type="checkbox"> Favoris seulement</label>
       <button type="button" id="rerun" class="primary">Relancer le moteur</button>
